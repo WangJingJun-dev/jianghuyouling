@@ -56,13 +56,6 @@ namespace JianghuYouling
         List<KeyValuePair<int, string>> _groupRoster; // 初始化完成前也保留请求成员,供左栏稳定识别同一群
         string _requestedGroupId;         // 初始化完成前保留新群/持久群的独立身份，避免按成员集合串群
         bool _groupHistoryOnly;           // 成员当前不在同处时仍可回看该群，发送/重试保持关闭
-        GameObject _groupBtnGo;           // 「加人」按钮:单聊、传音、群聊和助手页均可从统一候选池组群
-        GameObject _monthlyCandidateBtnGo; // 当前 NPC 的过月主动人物候选开关
-        Button _monthlyCandidateBtn;
-        TextMeshProUGUI _monthlyCandidateLabel;
-        GameObject _novelButtonGo;          // 「往事成书」：当前 NPC 的聊天与记忆写作入口
-        Button _detailButton;
-        GameObject _detailButtonGo;
         GameObject _taiwuActionBarGo;
         readonly List<Button> _taiwuActionButtons = new List<Button>();
         readonly List<GameObject> _taiwuDirectActionControls = new List<GameObject>();
@@ -75,8 +68,6 @@ namespace JianghuYouling
         TextMeshProUGUI _summaryStatusText;
         CancellationTokenSource _summaryCancellation;
         int _summaryWorldGeneration;
-        Button _personaButton;
-        GameObject _personaButtonGo;
         TextMeshProUGUI _taiwuActionHint;
         ChatInputAutoGrow _inputGrow;
         RectTransform _inputTextViewport;
@@ -103,6 +94,7 @@ namespace JianghuYouling
         int _combatOfferVersion;           // 页签级一次性约战版本；新一轮/删除/清空会让旧按钮失效
         bool _combatTransitionBusy;        // 原生入场预检/等待回执期间锁住发送、重试和删除
         TextMeshProUGUI _sendLabel;       // 递话键文字(忙时切「中断」)
+        float[] clearArmAt = { -99f };
         string _progressLabel = "思忖";   // 思考行当前进度文字(随工具变)
         string _baseTitle = "";           // 标题正文
         bool _persistedHistoryRefreshPending; // 原生游戏互动在聊天窗外写盘后，闲时重绘当前单聊
@@ -213,10 +205,6 @@ namespace JianghuYouling
                                                         // 否则每个 TMP 文本都走"无字体"最坏路径(刷屏 LoadFontAsset 警告 + 额外 GPU/CPU 压力)
             if (_root == null) Build();
             _root.SetActive(true);
-            if (_groupBtnGo != null) _groupBtnGo.SetActive(true);
-            if (_monthlyCandidateBtnGo != null) _monthlyCandidateBtnGo.SetActive(true);
-            if (_novelButtonGo != null) _novelButtonGo.SetActive(true);
-            if (_detailButtonGo != null) _detailButtonGo.SetActive(true);
             RefreshMonthlyCandidateButton();
             RefreshTaiwuActionBar();
             _baseTitle = _soulMode ? "与 " + _npcName + " 的灵魂对话" : "与 " + _npcName + " 对话"; ApplyTitle();
@@ -238,10 +226,6 @@ namespace JianghuYouling
             Open(npcId, taiwuId, npcName, font, proxySourceNpcId);
             if (_soulMode) return;
             _remote = true;
-            if (_groupBtnGo != null) _groupBtnGo.SetActive(true);
-            if (_monthlyCandidateBtnGo != null) _monthlyCandidateBtnGo.SetActive(true);
-            if (_novelButtonGo != null) _novelButtonGo.SetActive(true);
-            if (_detailButtonGo != null) _detailButtonGo.SetActive(true);
             RefreshMonthlyCandidateButton();
             Key = "rmt:" + WorldLifecycle.Generation + ":" + taiwuId + ":" + npcId;
             _baseTitle = "千里传音 · " + _npcName; ApplyTitle();
@@ -428,10 +412,6 @@ namespace JianghuYouling
             if (_font == null) _font = ResolveFont();
             if (_root == null) Build();
             _root.SetActive(true);
-            if (_groupBtnGo != null) _groupBtnGo.SetActive(true);
-            if (_monthlyCandidateBtnGo != null) _monthlyCandidateBtnGo.SetActive(false);
-            if (_novelButtonGo != null) _novelButtonGo.SetActive(false);
-            if (_detailButtonGo != null) _detailButtonGo.SetActive(false);
             RefreshTaiwuActionBar();
             _baseTitle = GroupConversationTitle(); ApplyTitle();
             ClearLog();
@@ -699,16 +679,11 @@ namespace JianghuYouling
             RefreshRoundBars();
         }
 
-        void SetMonthlyCandidateButtonState(string label, bool interactable)
-        {
-            if (_monthlyCandidateBtn != null) _monthlyCandidateBtn.interactable = interactable;
-            if (_monthlyCandidateLabel != null)
-                _monthlyCandidateLabel.text = label ?? "加入主动";
-        }
+        void SetMonthlyCandidateButtonState(string label, bool interactable) { }
 
         internal void RefreshMonthlyCandidateButton()
         {
-            if (_assistantMode || _groupMode || _npcId < 0 || _monthlyCandidateBtnGo == null) return;
+            if (_assistantMode || _groupMode || _npcId < 0) return;
             if (_requiresProxyBeforeMessage)
             {
                 SetMonthlyCandidateButtonState("先发消息", false);
@@ -748,7 +723,7 @@ namespace JianghuYouling
             });
         }
 
-        void ToggleCurrentNpcMonthlyCandidate()
+        internal void ToggleCurrentNpcMonthlyCandidate()
         {
             if (_assistantMode || _groupMode || _npcId < 0) return;
             if (_requiresProxyBeforeMessage)
@@ -842,7 +817,7 @@ namespace JianghuYouling
 
         // 点“加人”:单聊/传音/助手页会创建新群；现有群聊则原地扩充成员，沿用同一个
         // GroupId 和共享记录。候选统一为“所有聊过的人 ∪ 打开面板时当前地块人物”。
-        void StartAddMembers()
+        internal void StartAddMembers()
         {
             if (_busy) return;
             if (!_assistantMode && !_groupMode && _requiresProxyBeforeMessage)
@@ -960,6 +935,7 @@ namespace JianghuYouling
         public bool RemoteMode => _remote;
         public int TaiwuId => _taiwuId;
         public int NpcId => _npcId;
+        public string NpcName => _npcName;
         public string GroupId => _groupMode
             ? (!string.IsNullOrWhiteSpace(_group?.GroupId) ? _group.GroupId : _requestedGroupId)
             : null;
@@ -1031,11 +1007,11 @@ namespace JianghuYouling
         }
 
         // 清空按钮"确认清空"态 4 秒未再点 → 自动复位回「清空」(期间又点过=已真清/重新计时,则不动)。
-        IEnumerator DisarmClear(float[] armAt, TMPro.TextMeshProUGUI lbl, Image img, Color col0)
+        IEnumerator DisarmClear(float[] armAt)
         {
             float a = armAt[0];
             yield return new WaitForSecondsRealtime(4f);
-            if (armAt[0] == a) { armAt[0] = -99f; if (lbl != null) lbl.text = "清空"; if (img != null) img.color = col0; }
+            if (armAt[0] == a) armAt[0] = -99f;
         }
 
         IEnumerator ConsolidatePortrait(int npcId)
@@ -1167,14 +1143,14 @@ namespace JianghuYouling
                 "· 动手:当面单聊可由你或对方提出切磋/相搏/生死斗,点确认就进游戏本体战斗\n" +
                 "· 千里传音:人物页有「千里传音」键,与远方之人隔空叙旧、打听、托事;传功赠物等当面之事隔空办不到\n" +
                 "· 说得动就真办:赠物、传功、结义、做媒、买卖、疗伤、赴约等说成了都会真实发生,以游戏面板为准\n" +
-                "· 快捷行动:单聊/群聊下方可由太吾直接赠物、传授或写书赠送;赠物列表不会显示太吾当前装备;单聊顶部还能管理主动名单、查看详情、编辑人设、加人和导出\n" +
+                "· 快捷行动:单聊/群聊下方可由太吾直接赠物、传授或写书赠送;赠物列表不会显示太吾当前装备;杂务中还能管理主动名单、编辑人设、加人和导出\n" +
                 "· 梳头修面:当面提出并说定后点回执按钮进入游戏本体界面自行装扮;过月与主动来信不会替你改外貌\n" +
                 "· 主动名单:当前同道默认加入但可移除,聊过的其他人物也可手动加入;名单同时用于主动来信与过月主动行事,两项可分别关闭;江湖大事逐月连载,每回至少办成3件且覆盖2类不同实事\n" +
                 "· 身后旧话:聊过的人去世后不会删除聊天、人设、记忆或画像;首次确认死亡时会恢复曾隐藏的聊天入口并标为灵魂状态,之后仍可再次隐藏;灵魂只能被动交谈,不能主动发消息、查询、行动、调用任何工具或参与过月\n" +
                 "· 特殊人物:固定模板人物单纯打开对话不会复制;首次发送消息或开启互动记录时,才会为当前人物独立生成合法普通副本(位置失效时落在太吾村),并保留原角色形象\n" +
                 "· 往事成书:人物页或单聊顶部点「往事成书」,把你与当前人物的聊天、此人参与的群聊和此人的记忆写成小说;文风可改,成稿可导出\n" +
-                "· 灵儿与支持:灵儿页可导出诊断日志并查看 Mod 介绍;对话窗右上可打开自愿支持说明和二维码\n" +
-                "· 设置:聊天窗右上「设置」页配接口与模型、语音、生图、世界书、人设、难度和回复篇幅;字体可选小(默认)、中、大并即时生效";
+                "· 灵儿与关于:灵儿页可导出诊断日志并查看 Mod 介绍;开源与自愿支持说明、二维码位于「系统设置 → AI设置 → 关于」\n" +
+                "· 设置与人设:接口、模型、语音、生图、世界书、过月与助手等配置位于游戏「系统设置 → AI设置」并即时生效;聊天窗右上「人设」直接编辑当前 NPC 的自定义人设";
         }
 
         // 语音输入只负责让 Windows 把识别文本键入当前输入框；后续仍由玩家确认并点「递话」。
@@ -1945,10 +1921,6 @@ namespace JianghuYouling
             GlyphSanitizer.SetFont(_font);
             if (_root == null) Build();
             _root.SetActive(true);
-            if (_groupBtnGo != null) _groupBtnGo.SetActive(true);
-            if (_monthlyCandidateBtnGo != null) _monthlyCandidateBtnGo.SetActive(false);
-            if (_novelButtonGo != null) _novelButtonGo.SetActive(false);
-            if (_detailButtonGo != null) _detailButtonGo.SetActive(false);
             RefreshTaiwuActionBar();
             _baseTitle = nm + " · 江湖有灵助手"; ApplyTitle();
             ClearLog();
@@ -2243,18 +2215,6 @@ namespace JianghuYouling
             ModIntroductionWindow.Open(_font);
         }
 
-        void OpenSourceProject()
-        {
-            if (_busy || _combatTransitionBusy) return;
-            ModIntroductionWindow.OpenOpenSource(_font);
-        }
-
-        void SupportDevelopment()
-        {
-            if (_busy || _combatTransitionBusy) return;
-            ModIntroductionWindow.OpenSupport(_font);
-        }
-
         void ExportAssistantDiagnosticLogs()
         {
             if (!_assistantMode || _busy || _combatTransitionBusy || _assistantDiagnosticExportBusy) return;
@@ -2309,7 +2269,7 @@ namespace JianghuYouling
         }
 
         // 清空当前 NPC 的聊天记录(会话+梗概+文件)并清屏(任务7)
-        void ClearHistory()
+        internal void ClearHistory()
         {
             if (_busy) return;
             if (_assistantMode)
@@ -2353,7 +2313,7 @@ namespace JianghuYouling
                     DeleteGeneratedImageFile(round.imageFileName);
         }
 
-        void ExportCurrent()
+        internal void ExportCurrent()
         {
             if (_busy) { AppendSys("（本轮仍在生成，请等回话完成后再导出）"); return; }
             int taiwuId = _taiwuId, npcId = _npcId;
@@ -2660,8 +2620,10 @@ namespace JianghuYouling
             // 未配置语音接口:不静默失败,直接弹设置页让玩家去第一页填「语音接口」(可选项,不借用主 key)
             if (!TtsConfig.IsConfigured)
             {
-                AddBubble(BubbleKind.Sys, "（未配置语音接口。请在「设置 - 接口」页填『语音接口 baseUrl / 密钥』后再用语音。）"); ScrollDown();
-                ConfigWindow.Open(_font, _taiwuId, _npcId, _npcName);
+                AddBubble(BubbleKind.Sys, TtsConfig.IsEnabled
+                    ? "（语音配置尚未就绪。请在「AI 设置 - 语音」页检查接口与独立密钥。）"
+                    : "（语音功能已关闭。请在「AI 设置 - 语音」页开启并配置独立密钥。）"); ScrollDown();
+                AISettingsHost.OpenVoiceSettings();
                 return;
             }
             r.voiceGen = true;
@@ -2734,7 +2696,7 @@ namespace JianghuYouling
                 AddBubble(BubbleKind.Sys, "（生图配置尚未就绪："
                     + (imageConfigError ?? "请检查设置 - 生图") + "。）");
                 ScrollDown();
-                ConfigWindow.OpenImageSettings(_font, _taiwuId, _npcId, _npcName);
+                AISettingsHost.OpenImageSettings();
                 return;
             }
             r.imagePromptOpen = true;
@@ -3343,14 +3305,6 @@ namespace JianghuYouling
             }
             if (_summarizeLabel != null)
                 _summarizeLabel.text = _summaryCancellation != null ? "总结中…" : "总结对话";
-            bool personaVisible = visible && !_assistantMode && !_groupMode && _npcId >= 0;
-            bool detailVisible = visible && !_assistantMode && !_groupMode && _npcId >= 0 && !_soulMode;
-            if (_detailButtonGo != null) _detailButtonGo.SetActive(detailVisible);
-            if (_detailButton != null)
-                _detailButton.interactable = detailVisible && !_combatTransitionBusy;
-            if (_personaButtonGo != null) _personaButtonGo.SetActive(personaVisible);
-            if (_personaButton != null)
-                _personaButton.interactable = personaVisible && !_busy && !_combatTransitionBusy;
             if (_taiwuActionHint != null)
             {
                 float hintLeft = summaryVisible ? (_soulMode ? 132f : 456f) : 324f;
@@ -4234,135 +4188,12 @@ namespace JianghuYouling
             // 所有页签与对话原样留存(页签上的 × 才删除单个会话)。已不再单设最小化键——关闭即最小化。
             closeBtn.onClick.AddListener(() => ChatWindow.Minimize());
 
-            // 自愿支持入口紧贴关闭键左侧，并与同排操作按钮复用同一套圆角、字号和交互色。
-            var support = NewButton("Support", panel.transform, "支持", 17,
-                out var supportBtn);
-            var supportRt = support.GetComponent<RectTransform>();
-            supportRt.anchorMin = supportRt.anchorMax = supportRt.pivot = new Vector2(1, 1);
-            supportRt.anchoredPosition = new Vector2(-46, -8);
-            supportRt.sizeDelta = new Vector2(56, 36);
-            supportBtn.onClick.AddListener(SupportDevelopment);
-
-            // 开源项目入口位于支持入口左侧，并与同排操作按钮保持统一样式。
-            var openSource = NewButton("OpenSource", panel.transform, "开源", 17,
-                out var openSourceBtn);
-            var openSourceRt = openSource.GetComponent<RectTransform>();
-            openSourceRt.anchorMin = openSourceRt.anchorMax = openSourceRt.pivot = new Vector2(1, 1);
-            openSourceRt.anchoredPosition = new Vector2(-106, -8);
-            openSourceRt.sizeDelta = new Vector2(56, 36);
-            openSourceBtn.onClick.AddListener(OpenSourceProject);
-
-            // 清空聊天记录(任务7)
-            var clear = NewButton("Clear", panel.transform, "清空", 17, out var clearBtn);
-            var clearRt = clear.GetComponent<RectTransform>();
-            clearRt.anchorMin = clearRt.anchorMax = clearRt.pivot = new Vector2(1, 1);
-            clearRt.anchoredPosition = new Vector2(-226, -8); clearRt.sizeDelta = new Vector2(56, 36);
-            // 清空不可逆 → 两段式二次确认:先点变红显「确认清空」,4 秒内再点才真清;不点自动复位。
-            var clearLbl = clear.GetComponentInChildren<TMPro.TextMeshProUGUI>();
-            var clearImg = clear.GetComponent<Image>();
-            Color clearCol0 = clearImg != null ? clearImg.color : Color.white;
-            float[] clearArmAt = { -99f };
-            clearBtn.onClick.AddListener(() =>
-            {
-                if (Time.unscaledTime - clearArmAt[0] <= 4f)   // 第二次点(4s 内)→ 真清空
-                {
-                    clearArmAt[0] = -99f;
-                    if (clearLbl != null) clearLbl.text = "清空";
-                    if (clearImg != null) clearImg.color = clearCol0;
-                    ClearHistory();
-                }
-                else                                            // 第一次点 → 亮红求证
-                {
-                    clearArmAt[0] = Time.unscaledTime;
-                    if (clearLbl != null) clearLbl.text = "确认清空";
-                    if (clearImg != null) clearImg.color = new Color(0.62f, 0.20f, 0.18f, 0.98f);
-                    var host = TalkEntryHost.Instance;
-                    if (host != null) host.StartCoroutine(DisarmClear(clearArmAt, clearLbl, clearImg, clearCol0));
-                }
-            });
-
-            // 设置按钮:打开统一设置窗(接口/对话/世界书/人设 四页),带上当前太吾/NPC 上下文以便编辑世界书与人设
-            var cfg = NewButton("Config", panel.transform, "设置", 17, out var cfgBtn);
+            // 人设按钮直接复用杂务中的当前 NPC 编辑器；其余配置使用系统 AI 设置。
+            var cfg = NewButton("Config", panel.transform, "人设", 17, out var cfgBtn);
             var cfgRt = cfg.GetComponent<RectTransform>();
             cfgRt.anchorMin = cfgRt.anchorMax = cfgRt.pivot = new Vector2(1, 1);
-            cfgRt.anchoredPosition = new Vector2(-166, -8); cfgRt.sizeDelta = new Vector2(56, 36);
-            cfgBtn.onClick.AddListener(delegate { ConfigWindow.Open(_font, _taiwuId, _npcId, _npcName); });
-
-            // 「加人」按钮:单聊/传音/现有群/助手页都可从统一候选池组成新的独立群会话。
-            var grp = NewButton("Group", panel.transform, "加人", 17, out var grpBtn);
-            var grpRt = grp.GetComponent<RectTransform>();
-            grpRt.anchorMin = grpRt.anchorMax = grpRt.pivot = new Vector2(1, 1);
-            grpRt.anchoredPosition = new Vector2(-354, -8); grpRt.sizeDelta = new Vector2(64, 36);
-            grpBtn.onClick.AddListener(StartAddMembers);
-            _groupBtnGo = grp;
-
-            var monthlyCandidate = NewButton("MonthlyCandidate", panel.transform, "加入主动", 16,
-                out var monthlyCandidateBtn);
-            var monthlyCandidateRt = monthlyCandidate.GetComponent<RectTransform>();
-            monthlyCandidateRt.anchorMin = monthlyCandidateRt.anchorMax = monthlyCandidateRt.pivot = new Vector2(1, 1);
-            // 与右侧“往事成书 / 详情 / 人设 / 加人 / 导出 / 清空 / 设置”统一保持 4px 间距。
-            monthlyCandidateRt.anchoredPosition = new Vector2(-630, -8);
-            monthlyCandidateRt.sizeDelta = new Vector2(84, 36);
-            TextMeshProUGUI monthlyCandidateLabel = monthlyCandidate
-                .GetComponentInChildren<TextMeshProUGUI>();
-            monthlyCandidateBtn.onClick.AddListener(ToggleCurrentNpcMonthlyCandidate);
-            _monthlyCandidateBtnGo = monthlyCandidate;
-            _monthlyCandidateBtn = monthlyCandidateBtn;
-            _monthlyCandidateLabel = monthlyCandidateLabel;
-
-            // 当前单聊另一个写作入口：紧靠“加入/移除主动”右侧，名称与人物详情页一致。
-            _novelButtonGo = NewButton("NpcNovel", panel.transform, "往事成书", 16,
-                out var novelButton);
-            var novelRt = _novelButtonGo.GetComponent<RectTransform>();
-            novelRt.anchorMin = novelRt.anchorMax = novelRt.pivot = new Vector2(1, 1);
-            novelRt.anchoredPosition = new Vector2(-542, -8);
-            novelRt.sizeDelta = new Vector2(84, 36);
-            novelButton.onClick.AddListener(() =>
-                NpcNovelWindow.Open(_npcId, _taiwuId, _npcName, _font));
-
-            // 详情只属于当前普通单聊对象：紧靠“加入/移除主动”右侧，打开本体原生人物详情。
-            _detailButtonGo = NewButton("CharacterDetail", panel.transform, "详情", 16,
-                out _detailButton);
-            var detailRt = _detailButtonGo.GetComponent<RectTransform>();
-            detailRt.anchorMin = detailRt.anchorMax = detailRt.pivot = new Vector2(1, 1);
-            detailRt.anchoredPosition = new Vector2(-482, -8);
-            detailRt.sizeDelta = new Vector2(56, 36);
-            _detailButton.onClick.AddListener(() => CharacterMenuLink.OpenCharacterInfo(_npcId));
-
-            // 人设属于当前普通单聊对象，紧靠“详情”右侧；灵儿和群聊页隐藏。
-            _personaButtonGo = NewButton("Persona", panel.transform, "人设", 16,
-                out _personaButton);
-            var personaRt = _personaButtonGo.GetComponent<RectTransform>();
-            personaRt.anchorMin = personaRt.anchorMax = personaRt.pivot = new Vector2(1, 1);
-            personaRt.anchoredPosition = new Vector2(-422, -8);
-            personaRt.sizeDelta = new Vector2(56, 36);
-            _personaButton.onClick.AddListener(() =>
-                PersonaWindow.Open(_npcId, _taiwuId, _npcName, _font));
-
-            // 导出当前页签：单聊/群聊/灵儿均输出脱敏 Markdown；路径同时复制到剪贴板。
-            var export = NewButton("Export", panel.transform, "导出", 17, out var exportBtn);
-            var exportRt = export.GetComponent<RectTransform>();
-            exportRt.anchorMin = exportRt.anchorMax = exportRt.pivot = new Vector2(1, 1);
-            exportRt.anchoredPosition = new Vector2(-286, -8); exportRt.sizeDelta = new Vector2(64, 36);
-            exportBtn.onClick.AddListener(ExportCurrent);
-            // Anchor coordinates already place the controls left-to-right. Keep the actual
-            // Unity sibling order identical as well so keyboard/navigation/accessibility and
-            // any future layout group always see: 加入主动、往事成书、详情、人设、加人、导出、清空、设置。
-            int firstActionButtonSibling = System.Math.Min(monthlyCandidate.transform.GetSiblingIndex(),
-                System.Math.Min(
-                    System.Math.Min(System.Math.Min(System.Math.Min(_detailButtonGo.transform.GetSiblingIndex(),
-                        _personaButtonGo.transform.GetSiblingIndex()), grp.transform.GetSiblingIndex()),
-                        export.transform.GetSiblingIndex()),
-                    System.Math.Min(System.Math.Min(clear.transform.GetSiblingIndex(),
-                        cfg.transform.GetSiblingIndex()), _novelButtonGo.transform.GetSiblingIndex())));
-            monthlyCandidate.transform.SetSiblingIndex(firstActionButtonSibling);
-            _novelButtonGo.transform.SetSiblingIndex(firstActionButtonSibling + 1);
-            _detailButtonGo.transform.SetSiblingIndex(firstActionButtonSibling + 2);
-            _personaButtonGo.transform.SetSiblingIndex(firstActionButtonSibling + 3);
-            grp.transform.SetSiblingIndex(firstActionButtonSibling + 4);
-            export.transform.SetSiblingIndex(firstActionButtonSibling + 5);
-            clear.transform.SetSiblingIndex(firstActionButtonSibling + 6);
-            cfg.transform.SetSiblingIndex(firstActionButtonSibling + 7);
+            cfgRt.anchoredPosition = new Vector2(-46, -8); cfgRt.sizeDelta = new Vector2(56, 36);
+            cfgBtn.onClick.AddListener(delegate { PersonaWindow.Open(_npcId, _taiwuId, _npcName, _font); });
 
             // 滚动消息区
             var scrollGo = new GameObject("Scroll", typeof(RectTransform), typeof(Image), typeof(ScrollRect));
@@ -4591,6 +4422,22 @@ namespace JianghuYouling
             suggest.AddComponent<DictationInputFocusKeeper>().Input = _input;
             _suggestBtn.onClick.AddListener(SuggestForMe);
             RefreshTaiwuActionBar();
+        }
+
+        internal void RequestClearHistory()
+        {
+            if (Time.unscaledTime - clearArmAt[0] <= 4f)
+            {
+                clearArmAt[0] = -99f;
+                ClearHistory();
+            }
+            else
+            {
+                clearArmAt[0] = Time.unscaledTime;
+                AppendSys("（再次点击「杂务 → 清空」以确认清空当前会话，4 秒内有效。）");
+                var host = TalkEntryHost.Instance;
+                if (host != null) host.StartCoroutine(DisarmClear(clearArmAt));
+            }
         }
 
         // 「代笔」:据聊天记录生成太吾要说的话 → 填入输入框(覆盖原内容)。生成期间禁用按钮,防重复并发。
@@ -4927,6 +4774,45 @@ namespace JianghuYouling
         static long _navigationActivityClock;
         static ChatTab _combatTransitionOwner; // 全页签共享：一次只允许一个原生战斗入场
 
+        sealed class PendingMiscAction
+        {
+            public MiscInteractionAction Action;
+            public int NpcId;
+            public int TaiwuId;
+            public int Generation;
+            public uint WorldId;
+            public int RequestId;
+            public bool OpenCompleted;
+        }
+        static PendingMiscAction _pendingMiscAction;
+
+        internal static void InvokeMiscActionForNpc(int npcId, int taiwuId, string npcName,
+            TMP_FontAsset font, MiscInteractionAction action)
+        {
+            _pendingMiscAction = new PendingMiscAction
+            {
+                Action = action, NpcId = npcId, TaiwuId = taiwuId,
+                Generation = WorldLifecycle.Generation, WorldId = WorldLifecycle.WorldId,
+                RequestId = _identityOpenRequest + 1,
+            };
+            Open(npcId, taiwuId, npcName, font);
+        }
+
+        internal static void InvokeMiscAction(MiscInteractionAction action)
+        {
+            ChatTab tab = _active;
+            if (tab == null) return;
+            switch (action)
+            {
+                case MiscInteractionAction.MonthlyCandidate: tab.ToggleCurrentNpcMonthlyCandidate(); break;
+                case MiscInteractionAction.Novel: NpcNovelWindow.Open(tab.NpcId, tab.TaiwuId, tab.NpcName, tab.Font); break;
+                case MiscInteractionAction.Persona: PersonaWindow.Open(tab.NpcId, tab.TaiwuId, tab.NpcName, tab.Font); break;
+                case MiscInteractionAction.AddMembers: tab.StartAddMembers(); break;
+                case MiscInteractionAction.Export: tab.ExportCurrent(); break;
+                case MiscInteractionAction.Clear: tab.RequestClearHistory(); break;
+            }
+        }
+
         // 原生战斗会销毁发起页签，结算页却在之后才创建。这里保存最小会话身份，
         // 让 ViewCombatResult.OnInit 的权威结果可以一次性投影回原会话，而不依赖已销毁的 UI。
         sealed class PendingNativeCombatResult
@@ -5221,6 +5107,11 @@ namespace JianghuYouling
 
             // 已迁移身份的聊天以耐久映射后的 ID 为准；普通人物则保持原 ID。
             // 灵魂没有“当面/千里传音”之分，统一按本地单聊键打开。
+            if (_pendingMiscAction != null)
+            {
+                _pendingMiscAction.NpcId = knownDead ? knownId : npcId;
+                _pendingMiscAction.OpenCompleted = true;
+            }
             OpenResolved(knownDead ? knownId : npcId, taiwuId, npcName, font, false);
             return true;
         }
@@ -5235,6 +5126,8 @@ namespace JianghuYouling
             TMP_FontAsset font, bool remote)
         {
             int request = ++_identityOpenRequest;
+            if (_pendingMiscAction != null && _pendingMiscAction.RequestId != request)
+                _pendingMiscAction = null;
             if (font != null) _font = font;
             // A rollback can reuse a former proxy id, including one locally marked dead.
             // Such entries must pass the same current-world check before opening a soul tab.
@@ -5246,8 +5139,15 @@ namespace JianghuYouling
                 if (request != _identityOpenRequest || !WorldLifecycle.IsSameWorld(generation)) return;
                 if (!string.IsNullOrWhiteSpace(error))
                 {
+                    if (_pendingMiscAction != null && _pendingMiscAction.RequestId == request)
+                        _pendingMiscAction = null;
                     LegacyDataNotice.Post("character-identity-" + npcId, error);
                     return;
+                }
+                if (_pendingMiscAction != null)
+                {
+                    _pendingMiscAction.NpcId = resolvedId;
+                    _pendingMiscAction.OpenCompleted = true;
                 }
                 if (TryOpenSoulConversation(resolvedId, taiwuId, npcName, font)) return;
                 OpenResolved(resolvedId, taiwuId, npcName, font, remote, npcId);
@@ -5610,6 +5510,17 @@ namespace JianghuYouling
                     AssistantWidget.NotifyChatUnreadChanged();
                 }
             }
+            if (_pendingMiscAction != null && tab != null)
+            {
+                PendingMiscAction pending = _pendingMiscAction;
+                if (!pending.OpenCompleted) _pendingMiscAction = null;
+                else if (pending.NpcId == tab.NpcId && pending.TaiwuId == tab.TaiwuId
+                    && pending.Generation == WorldLifecycle.Generation && pending.WorldId == WorldLifecycle.WorldId)
+                {
+                    _pendingMiscAction = null;
+                    InvokeMiscAction(pending.Action);
+                }
+            }
             EnsureBar();
             RefreshTabs();
         }
@@ -5632,6 +5543,7 @@ namespace JianghuYouling
         public static void ResetForWorldExit()
         {
             _identityOpenRequest++;
+            _pendingMiscAction = null;
             ResetConversationArchive();
             GroupMemberPicker.CancelForWorldExit();
             TaiwuDirectActionWindow.CloseForWorldExit();
@@ -5853,6 +5765,11 @@ namespace JianghuYouling
 
         /// <summary>会话标题 / 模式 / 人数变 → 刷新左侧导航。</summary>
         public static void NotifyTabChanged(ChatTab tab) { RefreshTabs(); }
+
+        internal static void NotifyImageGenerationDisabled()
+        {
+            foreach (ChatTab tab in _tabs) tab?.InvalidateAllImages();
+        }
 
         // ---------- 窗口级状态(对外保持原语义,作用于当前活动页签)----------
         public static bool IsOpen => _active != null && _active.RootActive || EmptyConversationVisible;

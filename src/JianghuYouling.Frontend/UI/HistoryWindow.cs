@@ -759,7 +759,7 @@ namespace JianghuYouling
         {
             var host = TalkEntryHost.Instance;
             if (host == null) return;
-            if (!LlmService.IsConfigured) { try { ConfigWindow.Open(_font); } catch { } return; }
+            if (!LlmService.IsConfigured) { try { AISettingsHost.OpenModelSettings(); } catch { } return; }
             long requestVersion = unchecked(++_requestVersion);
             host.StartCoroutine(OpenConvo(npc, fallbackName, requestVersion, _worldGeneration, _worldId));
         }

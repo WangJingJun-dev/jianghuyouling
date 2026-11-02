@@ -135,7 +135,10 @@ namespace JianghuYouling.TrustBoundaryTests
             request.WorkflowJson = "{'1':{'class_type':'LoadImage','inputs':{'image':'{{JHYL_REFERENCE_IMAGE}}'}},"
                 + "'2':{'class_type':'CLIPTextEncode','inputs':{'text':'{{JHYL_PROMPT}}'}},"
                 + "'3':{'class_type':'EmptyLatentImage','inputs':{'width':'{{JHYL_WIDTH}}','height':'{{JHYL_HEIGHT}}'}}}";
-            AssertTrue("trusted local ComfyUI workflow accepts loopback without credentials",
+            AssertFalse("enabled local ComfyUI workflow still requires an API key",
+                ImageGenerationClient.TryValidate(request, out _, out _));
+            request.ApiKey = "fixture";
+            AssertTrue("trusted local ComfyUI workflow accepts loopback with an API key",
                 ImageGenerationClient.TryValidate(request, out _, out _));
             request.WorkflowJson = request.WorkflowJson
                 .Replace("{{JHYL_REFERENCE_IMAGE}}", "{JHYL_REFERENCE_IMAGE}")

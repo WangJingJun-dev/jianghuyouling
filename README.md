@@ -14,11 +14,12 @@
 - 同道过月行为、江湖大事和月度摘要；中断显示具体原因，保留已确认行动，未完成任务不跨月或重启后续跑。
 - 灵儿助手、自定义世界书、内置特殊人设。
 - 多模型接口配置、本地密钥保护及可选本地图片生成。
+- 模型、体验档位、语音、生图、对话、世界书、过月、助手配置统一位于「系统设置 → AI设置」，保存后即时生效；旧聊天「设置」暂时只保留 NPC 人设对比入口。
 
 ## 安装与使用
 
 在 [Steam 创意工坊](https://steamcommunity.com/sharedfiles/filedetails/?id=3747674580)
-订阅并在游戏中启用。模型地址、模型名称和 API Key 在游戏内点击灵儿头像配置。
+订阅并在游戏中启用。模型地址、模型名称和 API Key 在「系统设置 → AI设置 → 模型」中配置，也可点击灵儿头像打开助手配置。
 模型服务由玩家自行选择和承担费用；本仓库不提供密钥或模型账户。
 
 完整功能说明见 [Mod 介绍](docs/workshop-description.md)。
@@ -36,8 +37,8 @@ dotnet build src/JianghuYouling.Backend/JianghuYouling.Backend.csproj -c Debug -
 dotnet run --project tools/JianghuYouling.DevTest/JianghuYouling.DevTest.csproj -c Debug -- --offline
 ```
 
-Debug 不部署到游戏；Release 构建会自动复制到本机 Mod 目录，并在配置的工坊目录存在时同步文件。
-验证源码时使用 Debug，或显式覆盖部署目录。详见 [开发与测试](docs/development.md)。
+Debug 不部署到游戏；Release 构建会自动复制到本机游戏 `Mod` 目录。
+验证源码时使用 Debug，或显式覆盖 `ModDeploy`。Steam 工坊下载目录只用于拉取线上发布版，不用于测试部署。详见 [开发与测试](docs/development.md)。
 
 ## 目录
 

@@ -18,6 +18,12 @@ namespace JianghuYouling
             return "";
         }
 
+        public static string LoadDisplay()
+        {
+            string custom = Load();
+            return string.IsNullOrWhiteSpace(custom) ? SpecialPersonaCatalog.AssistantPersona : custom;
+        }
+
         public static bool Save(string s)
         {
             try
@@ -28,6 +34,14 @@ namespace JianghuYouling
                 return value.Length != 0 || DurableSettingsStore.Save(PathFor(), value, MaxBytes, IsValid);
             }
             catch { return false; }
+        }
+
+        public static bool SaveDisplay(string text)
+        {
+            string value = (text ?? "").Trim();
+            string defaultValue = (SpecialPersonaCatalog.AssistantPersona ?? "").Trim();
+            return Save(value.Length == 0 || string.Equals(value, defaultValue, System.StringComparison.Ordinal)
+                ? "" : value);
         }
 
         private static bool IsValid(string value)

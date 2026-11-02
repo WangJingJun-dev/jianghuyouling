@@ -74,6 +74,12 @@ namespace JianghuYouling
             }
         }
 
+        public static bool Reset(int taiwuId)
+        {
+            if (taiwuId <= 0) return false;
+            lock (Gate) return SaveState(taiwuId, NewState(taiwuId));
+        }
+
         public static bool ReplaceIdentity(int taiwuId, int oldNpcId, int newNpcId)
         {
             if (taiwuId <= 0 || oldNpcId <= 0 || newNpcId <= 0 || oldNpcId == newNpcId) return true;

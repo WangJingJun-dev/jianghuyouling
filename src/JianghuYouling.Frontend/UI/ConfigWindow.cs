@@ -17,9 +17,8 @@ using JianghuYouling.Core.Web;
 namespace JianghuYouling
 {
     /// <summary>
-    /// 游戏内统一设置窗(带左侧导航):接口 / 对话 / 世界书 / 人设 四页。
-    /// 所有配置一律在此填写——mod 管理页不再暴露任何设置项。接口写 Settings/llm.json;
-    /// 难度/篇幅/流式存各自 Store;世界书按太吾、人设按 NPC 持久化。世界书需太吾上下文、人设需 NPC 上下文(从对话中打开本窗即带上)。
+    /// 旧设置窗的 NPC 人设保留页，供与杂务中的人设编辑器对比。
+    /// 其余八类配置已迁入游戏「系统设置 → AI设置」；本窗不再构建或保存这些配置。
     /// </summary>
     public static class ConfigWindow
     {
@@ -29,7 +28,7 @@ namespace JianghuYouling
         static TextMeshProUGUI _title, _status, _presetSelectionHint;
         static TMP_InputField _baseUrl, _apiKey, _model, _bgModel, _maxTokens, _contextWindow, _profileNameInput, _voiceInput, _wbInput = null, _personaInput, _asstNameInput, _asstFacePathInput, _asstPersonaInput, _ttsBase, _ttsKey, _ttsModel, _imageProvider, _imageEndpoint, _imageKey, _imageModel, _imageSize, _imageWorkflowPath, _imageStyle, _companionMonthlyCountInput;
         static GameObject _asstPersonaInputGo;
-        static Button _saveBtn, _testBtn, _profileActivateBtn, _profileSaveBtn, _profileDeleteBtn, _diffBtn, _streamBtn, _replyLenBtn, _fontSizeBtn, _ghostwriteLenBtn, _ghostwriteLearningBtn, _thinkBtn, _aiEventBtn, _companionMonthlyBtn, _monthlyPopupBtn, _monthlyCandidateManagerBtn, _wbStructuredBtn = null, _wbResetBtn = null, _personaResetBtn, _asstEnabledBtn, _asstFreqBtn, _asstCommissionIntervalBtn, _asstFaceResetBtn, _groupRoundsBtn, _npcProactiveEnabledBtn, _npcProactiveFreqBtn, _imageWatermarkBtn;
+        static Button _saveBtn, _profileActivateBtn, _profileSaveBtn, _profileDeleteBtn, _diffBtn, _streamBtn, _replyLenBtn, _fontSizeBtn, _ghostwriteLenBtn, _ghostwriteLearningBtn, _thinkBtn, _aiEventBtn, _companionMonthlyBtn, _monthlyPopupBtn, _monthlyCandidateManagerBtn, _wbStructuredBtn = null, _wbResetBtn = null, _personaResetBtn, _asstFaceResetBtn, _groupRoundsBtn, _npcProactiveEnabledBtn, _npcProactiveFreqBtn, _imageWatermarkBtn;
         static TMP_Dropdown _profileDropdown;
         static Button _thinkingPromptBtn;
         static Button _ttsDialogueOnlyBtn;
@@ -129,13 +128,12 @@ namespace JianghuYouling
             SetEditorInteractable(true);
             SetButtons(true);   // a stale long-text task from the previous window cannot leave Save disabled
             ShowPane(0);
-            SetStatus("在此统一配置:接口 / 对话(难度·篇幅·流式) / 世界书 / 人设。", false);
+            SetStatus("在此查看和编辑当前 NPC 人设；其余配置已迁入系统设置的 AI 设置。", false);
         }
 
         public static void OpenImageSettings(TMP_FontAsset font, int taiwuId = -1, int npcId = -1, string npcName = null)
         {
-            Open(font, taiwuId, npcId, npcName);
-            if (_root != null && _root.activeSelf) ShowPane(3);
+            AISettingsHost.OpenImageSettings();
         }
 
         public static void Hide()
@@ -197,9 +195,14 @@ namespace JianghuYouling
             return _font;
         }
 
+        public static void OpenAssistantEditor()
+        {
+            AISettingsHost.OpenAssistantSettings();
+        }
+
         public static void Toggle(TMP_FontAsset font)
         {
-            if (_root != null && _root.activeSelf) Hide(); else Open(font);
+            AISettingsHost.OpenAssistantSettings();
         }
 
         static int ResolveTaiwuId()
@@ -215,26 +218,28 @@ namespace JianghuYouling
         static void Prefill()
         {
             JObject o = LlmService.ReadRaw();
-            _baseUrl.text = Str(o, "baseUrl", DefaultLlmBaseUrl);
-            _apiKey.text = Str(o, "apiKey", "");
-            _model.text = Str(o, "model", DefaultModel);          // 新用户默认 deepseek-v4-pro,只需补 key
-            if (_bgModel != null) _bgModel.text = Str(o, "bgModel", DefaultBgModel);   // 后台模型默认 deepseek-v4-flash;留空=同主模型
-            if (_maxTokens != null)
+            if (_baseUrl != null)
             {
-                string configuredMaxTokens = LlmService.ReadConfiguredMaxTokens(o);
-                _maxTokens.text = string.IsNullOrWhiteSpace(configuredMaxTokens)
-                    ? DefaultMaxTokensText : configuredMaxTokens.Trim();
+                _baseUrl.text = Str(o, "baseUrl", DefaultLlmBaseUrl);
+                _apiKey.text = Str(o, "apiKey", "");
+                _model.text = Str(o, "model", DefaultModel);
+                if (_bgModel != null) _bgModel.text = Str(o, "bgModel", DefaultBgModel);
+                if (_maxTokens != null)
+                {
+                    string configuredMaxTokens = LlmService.ReadConfiguredMaxTokens(o);
+                    _maxTokens.text = string.IsNullOrWhiteSpace(configuredMaxTokens)
+                        ? DefaultMaxTokensText : configuredMaxTokens.Trim();
+                }
+                if (_contextWindow != null)
+                {
+                    JToken configuredContext = o?["contextWindow"];
+                    string effectiveConfiguredContext = LlmService.ReadConfiguredContextWindow(o);
+                    _contextWindow.text = configuredContext == null
+                        ? RecommendedContextWindowText
+                        : (effectiveConfiguredContext ?? "").Trim();
+                }
+                RefreshLlmProfiles();
             }
-            if (_contextWindow != null)
-            {
-                // 新配置展示 1M 默认值；显式留空也由运行层采用同一个 1M 默认预算。
-                JToken configuredContext = o?["contextWindow"];
-                string effectiveConfiguredContext = LlmService.ReadConfiguredContextWindow(o);
-                _contextWindow.text = configuredContext == null
-                    ? RecommendedContextWindowText
-                    : (effectiveConfiguredContext ?? "").Trim();
-            }
-            RefreshLlmProfiles();
             // 语音(可选):未配过则默认填好火山 Seed Audio。旧版恰好仍是内置 MiniMax
             // 默认值时也展示新默认，但绝不把旧服务商的密钥带给火山接口。
             _ttsMigratingLegacyDefault = false;
@@ -405,8 +410,7 @@ namespace JianghuYouling
             _activePaneIndex = idx;
             for (int i = 0; i < _panes.Length; i++) if (_panes[i] != null) _panes[i].SetActive(i == idx);
             if (_navImgs != null) for (int i = 0; i < _navImgs.Length; i++) if (_navImgs[i] != null) _navImgs[i].color = (i == idx) ? NavOn : NavOff;
-            if (_testBtn != null) _testBtn.gameObject.SetActive(idx == 0);   // 「测试接口」与模型连接配置同页显示
-            if (idx == 7) EnsurePersonaLoaded();
+            if (idx == 0) EnsurePersonaLoaded();
         }
 
         static void EnsureWorldBookLoaded()
@@ -970,6 +974,20 @@ namespace JianghuYouling
                 _personaLoadedEffective = persona ?? "";
                 if (_personaInput != null) _personaInput.characterLimit = MaxPersona + 1;
             }
+            if (_baseUrl == null)
+            {
+                try { result.Transaction?.Commit(); }
+                finally { result.Transaction?.Dispose(); }
+                if (savePersona && PersonaSaveMatchesDisk(personasDirectory, taiwuId, npcId,
+                    persona, capturedPersonaPortrait))
+                    PortraitService.Invalidate(taiwuId, npcId);
+                FinishOwnedDocumentSave(operationToken);
+                SetEditorInteractable(true);
+                SetButtons(true);
+                EnsureActiveLongTextLoaded();
+                SetStatus("人设已保存", false);
+                yield break;
+            }
             // Keep the same transaction open across the background document writes and all
             // remaining settings. Any later validation/write failure restores both groups.
             try
@@ -1085,6 +1103,11 @@ namespace JianghuYouling
                     worldGeneration, worldId, newOperationToken, transactionPaths, personasDirectory));
                 return;
             }
+            if (_baseUrl == null)
+            {
+                SetStatus("当前 NPC 人设没有未保存的更改。", false);
+                return;
+            }
 
             SettingsBatchTransaction transaction = inheritedTransaction;
             try
@@ -1162,7 +1185,7 @@ namespace JianghuYouling
                 catch (System.Exception ex) { abort("(接口保存失败:" + ex.GetType().Name + ")"); return; }
             }
             // 语音(TTS,可选):存到 tts.json(接口/密钥)+ 模型到 tts_params.json;音色与语速语气全自动。
-            // 不填=不开语音,绝不借用主接口 key。
+            // 总开关由系统设置控制，保存接口参数不会改变开关，也绝不借用主接口 key。
             if (_ttsBase != null)
             {
                 string vb = (_ttsBase.text ?? "").Trim();
@@ -1184,7 +1207,7 @@ namespace JianghuYouling
                 _ttsMigratingLegacyDefault = false;
                 _ttsMigratingCrossProviderKey = false;
                 if (vk.Length > 0) ttsWarning = TtsConfigWarning(vb, ts.Model);
-                saved.Add(vk.Length > 0 ? "语音(已启用)" : "语音(未填密钥=不启用)");
+                saved.Add(TtsConfig.IsEnabled ? "语音(已启用)" : "语音(已关闭)");
             }
 
             if (_imageEndpoint != null)
@@ -1206,6 +1229,7 @@ namespace JianghuYouling
                 { abort("(生图接口必须是 HTTPS 完整地址；仅本机可使用 HTTP)"); return; }
                 if (!ImageGenerationConfig.SaveExplicit(new ImageGenerationConfig.Values
                 {
+                    Enabled = ImageGenerationConfig.LoadRaw().Enabled,
                     Provider = provider,
                     Endpoint = endpoint,
                     ApiKey = key,
@@ -1216,8 +1240,7 @@ namespace JianghuYouling
                     WorkflowPath = imageWorkflowPath
                 }))
                 { abort("(生图配置保存失败:" + (ImageGenerationConfig.LastSaveError ?? "安全存储失败") + ")"); return; }
-                saved.Add(key.Length > 0 ? "生图(已启用)"
-                    : (imageUri.IsLoopback ? "生图(本机服务已启用)" : "生图(未填密钥=不启用)"));
+                saved.Add(ImageGenerationConfig.LoadRaw().Enabled ? "生图(已启用)" : "生图(已关闭)");
             }
 
             // 对话设置
@@ -1688,7 +1711,6 @@ namespace JianghuYouling
         {
             bool ready = on && !_wbLoading && !_personaLoading && !_savingDocuments;
             if (_saveBtn != null) _saveBtn.interactable = ready;
-            if (_testBtn != null) _testBtn.interactable = ready;
             if (_profileSaveBtn != null) _profileSaveBtn.interactable = ready;
             if (_profileDropdown != null)
             {
@@ -1733,8 +1755,7 @@ namespace JianghuYouling
             foreach (Button button in new[] { _profileActivateBtn,
                 _profileSaveBtn, _profileDeleteBtn, _diffBtn, _streamBtn, _replyLenBtn, _fontSizeBtn, _ghostwriteLenBtn, _ghostwriteLearningBtn, _thinkBtn,
                 _aiEventBtn, _companionMonthlyBtn, _monthlyPopupBtn, _monthlyCandidateManagerBtn,
-                _wbStructuredBtn, _asstEnabledBtn, _asstFreqBtn,
-                _asstFaceResetBtn, _groupRoundsBtn, _npcProactiveEnabledBtn, _npcProactiveFreqBtn,
+                _wbStructuredBtn, _asstFaceResetBtn, _groupRoundsBtn, _npcProactiveEnabledBtn, _npcProactiveFreqBtn,
                 _economyPresetBtn, _balancedPresetBtn,
                  _bestExperiencePresetBtn, _imageWatermarkBtn, _thinkingPromptBtn, _ttsDialogueOnlyBtn })
                 if (button != null) button.interactable = enabled;
@@ -1781,7 +1802,7 @@ namespace JianghuYouling
             closeBtn.onClick.AddListener(Hide);
 
             // 左侧导航
-            string[] navs = { "模型", "体验档位", "语音", "生图", "对话", "过月", "世界书", "人设", "助手" };
+            string[] navs = { "人设" };
             _navImgs = new Image[navs.Length];
             float ny = -56f; const float navH = 50f;
             for (int i = 0; i < navs.Length; i++)
@@ -1793,8 +1814,7 @@ namespace JianghuYouling
                 nrt.anchoredPosition = new Vector2(12, ny); nrt.sizeDelta = new Vector2(118, 44);
                 nb.GetComponent<Image>().color = NavOff;
                 _navImgs[i] = nb.GetComponent<Image>();
-                if (idx == 6) b.onClick.AddListener(OpenStructuredWorldBook);
-                else b.onClick.AddListener(() => ShowPane(idx));
+                b.onClick.AddListener(() => ShowPane(idx));
                 ny -= navH;
             }
 
@@ -1803,39 +1823,21 @@ namespace JianghuYouling
             content.transform.SetParent(panel.transform, false);
             Anchor(content.GetComponent<RectTransform>(), new Vector2(0, 0), new Vector2(1, 1), new Vector2(144, 70), new Vector2(-14, -52));
 
-            _panes = new GameObject[9];
-            _panes[0] = BuildLlmPane(content.transform);
-            _panes[1] = BuildExperiencePresetPane(content.transform);
-            _panes[2] = BuildVoicePane(content.transform);
-            _panes[3] = BuildImagePane(content.transform);
-            _panes[4] = BuildTalkPane(content.transform);
-            _panes[5] = BuildMonthlyPane(content.transform);
-            // 世界书导航直接打开唯一的结构化编辑器；不再构建或短暂闪现旧纯文本页。
-            _panes[6] = NewPane("Pane_WorldBookDirect", content.transform);
-            _panes[7] = BuildPersonaPane(content.transform);
-            _panes[8] = BuildAssistantPane(content.transform);
+            _panes = new GameObject[1];
+            _panes[0] = BuildPersonaPane(content.transform);
 
             // 状态行
             _status = NewText("Status", panel.transform, 16, TextAlignmentOptions.Left);
             Anchor(_status.rectTransform, new Vector2(0, 0), new Vector2(1, 0), new Vector2(16, 60), new Vector2(-16, 96));
             _status.enableWordWrapping = true;
 
-            // 底栏:保存 / 测试 / 关闭
+            // 底栏:保存 / 关闭
             var saveGo = NewButton("Save", panel.transform, "保存", 20, out _saveBtn);
             Anchor(saveGo.GetComponent<RectTransform>(), new Vector2(0, 0), new Vector2(0, 0), new Vector2(16, 12), new Vector2(176, 52));
             _saveBtn.onClick.AddListener(Save);
-            var testGo = NewButton("Test", panel.transform, "测试接口", 20, out _testBtn);
-            Anchor(testGo.GetComponent<RectTransform>(), new Vector2(0, 0), new Vector2(0, 0), new Vector2(192, 12), new Vector2(352, 52));
-            _testBtn.onClick.AddListener(Test);
             var cb = NewButton("CloseBottom", panel.transform, "关闭", 20, out var cbBtn);
             Anchor(cb.GetComponent<RectTransform>(), new Vector2(1, 0), new Vector2(1, 0), new Vector2(-176, 12), new Vector2(-16, 52));
             cbBtn.onClick.AddListener(Hide);
-            _ttsDialogueOnlyBtn.navigation = new Navigation
-            {
-                mode = Navigation.Mode.Explicit,
-                selectOnUp = _ttsModel, selectOnDown = _saveBtn,
-                selectOnLeft = _navImgs[2].GetComponent<Button>(), selectOnRight = _saveBtn,
-            };
         }
 
         // —— 模型页:baseUrl / apiKey / model + 推荐说明 ——
@@ -2256,39 +2258,8 @@ namespace JianghuYouling
             string heading, string subheading, string settings, Color background, bool featured,
             out Button button)
         {
-            var card = new GameObject(name, typeof(RectTransform), typeof(Image));
-            card.transform.SetParent(parent, false);
-            Anchor(card.GetComponent<RectTransform>(), new Vector2(0, 0), new Vector2(0, 1),
-                new Vector2(left, 78), new Vector2(right, -92));
-            card.GetComponent<Image>().color = background;
-
-            var headingText = NewText(name + "Heading", card.transform, featured ? 22 : 21, TextAlignmentOptions.Center);
-            Anchor(headingText.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(8, -54), new Vector2(-8, -14));
-            headingText.text = heading;
-            headingText.fontStyle = FontStyles.Bold;
-            headingText.color = featured ? new Color(1f, 0.91f, 0.55f, 1f) : new Color(0.88f, 0.84f, 0.72f, 1f);
-
-            var sub = NewText(name + "Subheading", card.transform, 16, TextAlignmentOptions.Center);
-            Anchor(sub.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(8, -90), new Vector2(-8, -58));
-            sub.text = subheading;
-            sub.color = featured ? new Color(0.96f, 0.81f, 0.43f, 1f) : new Color(0.65f, 0.71f, 0.66f, 1f);
-
-            var details = NewText(name + "Details", card.transform, 17, TextAlignmentOptions.TopLeft);
-            Anchor(details.rectTransform, new Vector2(0, 0), new Vector2(1, 1), new Vector2(20, 96), new Vector2(-16, -112));
-            details.enableWordWrapping = true;
-            details.text = settings;
-            details.lineSpacing = 18f;
-            details.color = new Color(0.88f, 0.87f, 0.80f, 1f);
-
-            var buttonGo = NewButton(name + "Select", card.transform, featured ? "选择最佳体验" : "选择此档", 17, out button);
-            Anchor(buttonGo.GetComponent<RectTransform>(), new Vector2(0, 0), new Vector2(1, 0), new Vector2(16, 18), new Vector2(-16, 66));
-            if (featured)
-            {
-                var image = buttonGo.GetComponent<Image>();
-                if (image != null) image.color = new Color(0.78f, 0.53f, 0.16f, 1f);
-                var text = buttonGo.GetComponentInChildren<TextMeshProUGUI>();
-                if (text != null) { text.fontStyle = FontStyles.Bold; text.color = new Color(1f, 0.97f, 0.78f, 1f); }
-            }
+            ExperiencePresetCardView.Create(parent, name, left, right,
+                heading, subheading, settings, background, featured, out button);
         }
 
         static GameObject BuildMonthlyPane(Transform parent)
@@ -2357,15 +2328,9 @@ namespace JianghuYouling
         }
 
         static string AsstFreqLabel(int lv) { switch (lv) { case 0: return "关"; case 1: return "低"; case 3: return "高"; default: return "中"; } }
-        static void SetAsstEnabledLabel() { if (_asstEnabledBtn != null) { var t = _asstEnabledBtn.GetComponentInChildren<TextMeshProUGUI>(); if (t != null) t.text = _asstEnabled ? "开" : "关"; } }
-        static void SetAsstFreqLabel() { if (_asstFreqBtn != null) { var t = _asstFreqBtn.GetComponentInChildren<TextMeshProUGUI>(); if (t != null) t.text = AsstFreqLabel(_asstFreq); } }
-        static void SetAsstCommissionIntervalLabel()
-        {
-            if (_asstCommissionIntervalBtn == null) return;
-            var text = _asstCommissionIntervalBtn.GetComponentInChildren<TextMeshProUGUI>();
-            if (text != null) text.text = AssistantCommissionIntervalStore.Label(
-                _asstCommissionInterval);
-        }
+        static void SetAsstEnabledLabel() { }
+        static void SetAsstFreqLabel() { }
+        static void SetAsstCommissionIntervalLabel() { }
         static void ToggleAsstEnabled()
         {
             bool next = !_asstEnabled;
@@ -2413,40 +2378,6 @@ namespace JianghuYouling
         {
             var pane = NewPane("Pane_Asst", parent);
             var lc = new Color(0.80f, 0.78f, 0.70f, 1f);
-
-            // 助手总开关(标签 + 右侧开关)
-            var enLbl = NewText("Lbl_AsstEn", pane.transform, 18, TextAlignmentOptions.Left);
-            Anchor(enLbl.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(4, -32), new Vector2(-160, -8));
-            enLbl.text = "悬浮助手「灵儿」(关=不显示、不主动)"; enLbl.color = lc;
-            var enGo = NewButton("AsstEn", pane.transform, _asstEnabled ? "开" : "关", 18, out _asstEnabledBtn);
-            var enRt = enGo.GetComponent<RectTransform>(); enRt.anchorMin = enRt.anchorMax = enRt.pivot = new Vector2(1, 1);
-            enRt.anchoredPosition = new Vector2(-4, -8); enRt.sizeDelta = new Vector2(130, 34);
-            _asstEnabledBtn.onClick.AddListener(ToggleAsstEnabled);
-
-            // 主动消息频率(标签 + 右侧循环:关/低/中/高)
-            var fLbl = NewText("Lbl_AsstFreq", pane.transform, 18, TextAlignmentOptions.Left);
-            Anchor(fLbl.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(4, -76), new Vector2(-160, -52));
-            fLbl.text = "她主动找你的频率(真实时间)"; fLbl.color = lc;
-            var fGo = NewButton("AsstFreq", pane.transform, AsstFreqLabel(_asstFreq), 18, out _asstFreqBtn);
-            var fRt = fGo.GetComponent<RectTransform>(); fRt.anchorMin = fRt.anchorMax = fRt.pivot = new Vector2(1, 1);
-            fRt.anchoredPosition = new Vector2(-4, -52); fRt.sizeDelta = new Vector2(130, 34);
-            _asstFreqBtn.onClick.AddListener(CycleAsstFreq);
-
-            // 委托发送使用独立现实时间排期，不随游戏月份或主动聊天频率变化。
-            var commissionLbl = NewText("Lbl_AsstCommissionInterval", pane.transform, 18,
-                TextAlignmentOptions.Left);
-            Anchor(commissionLbl.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
-                new Vector2(4, -120), new Vector2(-160, -96));
-            commissionLbl.text = "灵儿委托发送频率（现实时间：低90 / 中60 / 高30分）";
-            commissionLbl.color = lc;
-            var commissionGo = NewButton("AsstCommissionInterval", pane.transform,
-                AssistantCommissionIntervalStore.Label(_asstCommissionInterval), 18,
-                out _asstCommissionIntervalBtn);
-            var commissionRt = commissionGo.GetComponent<RectTransform>();
-            commissionRt.anchorMin = commissionRt.anchorMax = commissionRt.pivot = new Vector2(1, 1);
-            commissionRt.anchoredPosition = new Vector2(-4, -96);
-            commissionRt.sizeDelta = new Vector2(130, 34);
-            _asstCommissionIntervalBtn.onClick.AddListener(CycleAsstCommissionInterval);
 
             // 助手名字(标签 + 单行输入)
             var nLbl = NewText("Lbl_AsstName", pane.transform, 18, TextAlignmentOptions.Left);

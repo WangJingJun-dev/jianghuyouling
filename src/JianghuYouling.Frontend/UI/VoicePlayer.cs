@@ -126,6 +126,13 @@ namespace JianghuYouling
         public static void Speak(object owner, int npcId, bool isAssistant, string text,
             Action<string> onState = null, Action onDone = null)
         {
+            if (!TtsConfig.IsEnabled)
+            {
+                Stop();
+                onState?.Invoke("语音功能已关闭");
+                onDone?.Invoke();
+                return;
+            }
             var host = TalkEntryHost.Instance;
             if (host == null) { onState?.Invoke("宿主缺失，无法播放"); onDone?.Invoke(); return; }
 
@@ -138,6 +145,31 @@ namespace JianghuYouling
             _activeCanceled = onDone;
             _busy = true;
             host.StartCoroutine(SpeakCo(generation, cancellation, npcId, isAssistant, text, onState, onDone));
+        }
+
+        internal static System.Threading.Tasks.Task<MiniMaxAudioResult> DispatchSynthesis(
+            string provider, string baseUrl, string apiKey, string model, string text, string voice,
+            string performanceProfile, float speed, string emotion, float synthesisVolume,
+            float configuredVolume, int pitch, bool seedTts2, CancellationToken cancellationToken)
+        {
+            return provider == TtsProviderUtil.ProviderVolcengineSeedAudio
+                ? (seedTts2
+                    ? MiniMaxClient.VolcengineSeedTts2Async(baseUrl, apiKey,
+                        string.IsNullOrWhiteSpace(model) ? "seed-tts-2.0" : model,
+                        text, voice, performanceProfile, speed, emotion, synthesisVolume, cancellationToken)
+                    : MiniMaxClient.VolcengineSeedAudioAsync(baseUrl, apiKey,
+                        string.IsNullOrWhiteSpace(model) ? "seed-audio-1.0" : model,
+                        text, voice, speed, emotion, synthesisVolume, pitch, cancellationToken))
+                : (provider == TtsProviderUtil.ProviderOpenAi
+                    ? MiniMaxClient.OpenAiSpeechAsync(baseUrl, apiKey, model, voice, text,
+                        "mp3", speed, cancellationToken)
+                    : (provider == TtsProviderUtil.ProviderDashScopeQwen
+                        ? MiniMaxClient.DashScopeQwenSpeechAsync(baseUrl, apiKey,
+                            string.IsNullOrWhiteSpace(model) ? "qwen3-tts-flash" : model,
+                            voice, text, cancellationToken)
+                        : MiniMaxClient.TextToSpeechAsync(baseUrl, apiKey, text, voice,
+                            string.IsNullOrWhiteSpace(model) ? "speech-02-turbo" : model,
+                            speed, emotion, configuredVolume, pitch, cancellationToken)));
         }
 
         static void CancelActive()
@@ -299,24 +331,9 @@ namespace JianghuYouling
                         System.Threading.Tasks.Task<MiniMaxAudioResult> task = null;
                         try
                         {
-                            task = provider == TtsProviderUtil.ProviderVolcengineSeedAudio
-                                ? (seedTts2
-                                    ? MiniMaxClient.VolcengineSeedTts2Async(baseUrl, apiKey,
-                                        string.IsNullOrWhiteSpace(useModel) ? "seed-tts-2.0" : useModel,
-                                        chunk, voice, chunkPerformanceProfile, chunkSpeed, chunkEmotion, synthesisVolume,
-                                        requestCancellation.Token)
-                                    : MiniMaxClient.VolcengineSeedAudioAsync(baseUrl, apiKey,
-                                        string.IsNullOrWhiteSpace(useModel) ? "seed-audio-1.0" : useModel,
-                                        chunk, voice, chunkSpeed, chunkEmotion, synthesisVolume, st.Pitch,
-                                        requestCancellation.Token))
-                                : (provider == TtsProviderUtil.ProviderOpenAi
-                                    ? MiniMaxClient.OpenAiSpeechAsync(baseUrl, apiKey, useModel, voice, chunk, "mp3", chunkSpeed, requestCancellation.Token)
-                                    : (provider == TtsProviderUtil.ProviderDashScopeQwen
-                                        ? MiniMaxClient.DashScopeQwenSpeechAsync(baseUrl, apiKey,
-                                            string.IsNullOrWhiteSpace(useModel) ? "qwen3-tts-flash" : useModel, voice, chunk, requestCancellation.Token)
-                                        : MiniMaxClient.TextToSpeechAsync(baseUrl, apiKey, chunk, voice,
-                                            string.IsNullOrWhiteSpace(useModel) ? "speech-02-turbo" : useModel,
-                                            chunkSpeed, chunkEmotion, st.Vol, st.Pitch, requestCancellation.Token)));
+                            task = DispatchSynthesis(provider, baseUrl, apiKey, useModel, chunk, voice,
+                                chunkPerformanceProfile, chunkSpeed, chunkEmotion, synthesisVolume, st.Vol,
+                                st.Pitch, seedTts2, requestCancellation.Token);
 
                             while (!task.IsCompleted)
                             {
@@ -482,27 +499,9 @@ namespace JianghuYouling
 
                     item.RequestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token);
                     item.RequestCancellation.CancelAfter(TtsProviderUtil.SpeechSynthesisDeadlineMilliseconds);
-                    item.RequestTask = provider == TtsProviderUtil.ProviderVolcengineSeedAudio
-                        ? (seedTts2
-                            ? MiniMaxClient.VolcengineSeedTts2Async(baseUrl, apiKey,
-                                string.IsNullOrWhiteSpace(model) ? "seed-tts-2.0" : model,
-                                chunk, voice, chunkPerformanceProfile, chunkSpeed, chunkEmotion,
-                                synthesisVolume, item.RequestCancellation.Token)
-                            : MiniMaxClient.VolcengineSeedAudioAsync(baseUrl, apiKey,
-                                string.IsNullOrWhiteSpace(model) ? "seed-audio-1.0" : model,
-                                chunk, voice, chunkSpeed, chunkEmotion, synthesisVolume, pitch,
-                                item.RequestCancellation.Token))
-                        : (provider == TtsProviderUtil.ProviderOpenAi
-                            ? MiniMaxClient.OpenAiSpeechAsync(baseUrl, apiKey, model, voice, chunk,
-                                "mp3", chunkSpeed, item.RequestCancellation.Token)
-                            : (provider == TtsProviderUtil.ProviderDashScopeQwen
-                                ? MiniMaxClient.DashScopeQwenSpeechAsync(baseUrl, apiKey,
-                                    string.IsNullOrWhiteSpace(model) ? "qwen3-tts-flash" : model,
-                                    voice, chunk, item.RequestCancellation.Token)
-                                : MiniMaxClient.TextToSpeechAsync(baseUrl, apiKey, chunk, voice,
-                                    string.IsNullOrWhiteSpace(model) ? "speech-02-turbo" : model,
-                                    chunkSpeed, chunkEmotion, configuredVolume, pitch,
-                                    item.RequestCancellation.Token)));
+                    item.RequestTask = DispatchSynthesis(provider, baseUrl, apiKey, model, chunk, voice,
+                        chunkPerformanceProfile, chunkSpeed, chunkEmotion, synthesisVolume, configuredVolume,
+                        pitch, seedTts2, item.RequestCancellation.Token);
                     pendingRequests++;
                     work.Add(item);
                 }

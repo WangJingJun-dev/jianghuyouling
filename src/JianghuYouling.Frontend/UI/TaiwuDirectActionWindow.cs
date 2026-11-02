@@ -369,6 +369,55 @@ namespace JianghuYouling
 
         private static IEnumerator LoadChoices(long version)
         {
+            var recipientCombatIds = new HashSet<short>();
+            var recipientLifeIds = new HashSet<short>();
+            if (_kind != TaiwuDirectActionKind.GiveItem)
+            {
+                var recipient = new NpcSnapshot();
+                yield return NpcSnapshotReader.FetchSkills(_targetId, recipient,
+                    () => RequestCurrent(version), includeFlipEligibility: false);
+                if (!RequestCurrent(version)) yield break;
+                yield return NpcSnapshotReader.FetchLifeSkills(_targetId, recipient,
+                    () => RequestCurrent(version));
+                if (!RequestCurrent(version)) yield break;
+                if (!recipient.CombatSkillsLoaded || !recipient.LifeSkillsLoaded)
+                {
+                    Fail("暂时无法确认对方已会的武学与技艺，请稍后重试");
+                    yield break;
+                }
+                foreach (LearnableSkill skill in recipient.LearnableSkills)
+                    recipientCombatIds.Add(skill.TemplateId);
+                foreach (LearnableSkill skill in recipient.LearnableLifeSkills)
+                    recipientLifeIds.Add(skill.TemplateId);
+            }
+
+            var teachableCombatIds = new HashSet<short>();
+            var teachableLifeIds = new HashSet<short>();
+            if (_kind != TaiwuDirectActionKind.GiveItem)
+            {
+                string teachableError = null;
+                bool teachableDone = false;
+                EffectHandler.QueryTaiwuTeachableSkills(_taiwuId, (combat, life, error) =>
+                {
+                    teachableError = error;
+                    if (error == null)
+                    {
+                        teachableCombatIds = new HashSet<short>(combat ?? new List<short>());
+                        teachableLifeIds = new HashSet<short>(life ?? new List<short>());
+                    }
+                    teachableDone = true;
+                });
+                float teachableDeadline = Time.unscaledTime + EffectHandler.ReadOnlyQueryWaitSeconds;
+                while (!teachableDone && Time.unscaledTime < teachableDeadline && RequestCurrent(version))
+                    yield return null;
+                if (!RequestCurrent(version)) yield break;
+                if (teachableError != null || !teachableDone)
+                {
+                    Fail("暂时无法确认太吾的研读进度，请稍后重试");
+                    yield break;
+                }
+            }
+
             TaiwuHoldings holdings = null;
             int money = -1;
             bool moneyDone = _kind != TaiwuDirectActionKind.GiveItem;
@@ -422,7 +471,9 @@ namespace JianghuYouling
             else
             {
                 foreach (LearnableSkill skill in holdings?.CombatSkills ?? new List<LearnableSkill>())
-                    if (skill != null && !string.IsNullOrWhiteSpace(skill.Name))
+                    if (skill != null && !string.IsNullOrWhiteSpace(skill.Name)
+                        && teachableCombatIds.Contains(skill.TemplateId)
+                        && !recipientCombatIds.Contains(skill.TemplateId))
                     {
                         var choice = new Choice
                         {
@@ -434,7 +485,9 @@ namespace JianghuYouling
                         Choices.Add(choice);
                     }
                 foreach (LearnableSkill skill in holdings?.LifeSkills ?? new List<LearnableSkill>())
-                    if (skill != null && !string.IsNullOrWhiteSpace(skill.Name))
+                    if (skill != null && !string.IsNullOrWhiteSpace(skill.Name)
+                        && teachableLifeIds.Contains(skill.TemplateId)
+                        && !recipientLifeIds.Contains(skill.TemplateId))
                     {
                         var choice = new Choice
                         {

@@ -30,10 +30,7 @@ namespace JianghuYouling
             catch (Exception e) { Debug.LogWarning("[江湖有灵] 打开角色菜单失败: " + e.GetType().Name); }
         }
 
-        /// <summary>
-        /// 打开指定 NPC 的原生人物详情首页。参数形态取自最新版本体人物选择、事件人物列表等入口：
-        /// 非太吾只传 CharacterId，并明确落到 CharacterBase；不冒用任何可操作模板。
-        /// </summary>
+        /// <summary>打开指定 NPC 的原生人物详情首页；入口目前隐藏，方法保留。</summary>
         public static void OpenCharacterInfo(int characterId)
         {
             if (characterId < 0) return;

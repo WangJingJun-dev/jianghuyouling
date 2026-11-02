@@ -90,8 +90,8 @@ namespace JianghuYouling.Core.Web
             { error = "远程生图接口必须使用 HTTPS"; return false; }
             if (provider == ProviderComfyUI && !endpoint.IsLoopback)
             { error = "ComfyUI 生图只允许连接本机回环地址"; return false; }
-            if (string.IsNullOrWhiteSpace(request.ApiKey) && !endpoint.IsLoopback)
-            { error = "未配置生图 API Key"; return false; }
+            if (string.IsNullOrWhiteSpace(request.ApiKey))
+            { error = "启用生图功能必须配置独立 API Key"; return false; }
             if ((provider != ProviderComfyUI && string.IsNullOrWhiteSpace(request.Model))
                 || (request.Model ?? "").Length > 256
                 || SecretRedactor.ContainsHeaderBreak(request.Model))

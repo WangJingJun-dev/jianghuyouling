@@ -241,7 +241,7 @@ namespace JianghuYouling
         {
             if (Instance == null || !CurNpc(out int charId, out int taiwuId)) return;
             // 没配 key 先弹配置页(开个聊不了的窗没意义)
-            if (!LlmService.IsConfigured) { try { ConfigWindow.Open((TMP_FontAsset)null); } catch { } return; }
+            if (!LlmService.IsConfigured) { try { AISettingsHost.OpenModelSettings(); } catch { } return; }
             int generation = WorldLifecycle.Generation; uint worldId = WorldLifecycle.WorldId;
             long requestVersion = unchecked(++Instance._requestVersion);
             try { Instance.StartCoroutine(Instance.ResolveNameThen(charId, taiwuId, true,

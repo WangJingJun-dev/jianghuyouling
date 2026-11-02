@@ -187,8 +187,8 @@ namespace JianghuYouling
             {
                 try
                 {
-                    // 没配 key 时:与 NPC「AI对话」一致 —— 先弹配置页让玩家填接口,而不是开个聊不了的窗
-                    if (!LlmService.IsConfigured) { ConfigWindow.Open((TMP_FontAsset)null); return; }
+                    // 没配 key 时:与 NPC「细聊」一致 —— 先弹配置页让玩家填接口,而不是开个聊不了的窗
+                    if (!LlmService.IsConfigured) { AISettingsHost.OpenModelSettings(); return; }
                     ChatWindow.OpenAssistant();
                 }
                 catch (System.Exception e) { Debug.LogWarning("[江湖有灵] 打开助手失败: " + e.GetType().Name); }
@@ -256,7 +256,7 @@ namespace JianghuYouling
             {
                 try
                 {
-                    if (!LlmService.IsConfigured) { ConfigWindow.Open((TMP_FontAsset)null); return; }
+                    if (!LlmService.IsConfigured) { AISettingsHost.OpenModelSettings(); return; }
                     ChatWindow.RestoreFromMinimize();
                 }
                 catch (System.Exception e) { Debug.LogWarning("[江湖有灵] 打开聊天窗失败: " + e.GetType().Name); }

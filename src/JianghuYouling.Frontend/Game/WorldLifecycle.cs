@@ -39,6 +39,8 @@ namespace JianghuYouling
             try { PersonaWindow.ResetForWorldExit(); } catch { }
             try { WorldBookWindow.ResetForWorldExit(); } catch { }
             try { StructuredWorldBookWindow.ResetForWorldExit(); } catch { }
+            try { AISettingsWorldBookEditor.ResetForWorldExit(); } catch { }
+            try { AISettingsMonthlyCandidateView.ResetForWorldExit(); } catch { }
             try { MonthlyDigestPopup.ResetForWorldExit(); } catch { }
             try { MonthlyChronicleProgressStore.ResetForWorldExit(); } catch { }
             try { MonthlyChronicleNoticeStore.ResetForWorldExit(); } catch { }

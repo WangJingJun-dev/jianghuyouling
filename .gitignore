@@ -9,6 +9,7 @@ bin/
 obj/
 .vs/
 .idea/
+.superpowers/
 *.user
 /Directory.Build.local.props
 /Config.lua
@@ -20,6 +21,7 @@ Settings.json*
 .tmpdeploy/
 .tmpbuild/
 /.tmp/
+/.worktrees/
 .e2e-backup/
 .e2e-results/
 SavedData/

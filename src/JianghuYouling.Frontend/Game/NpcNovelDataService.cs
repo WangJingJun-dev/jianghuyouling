@@ -8,6 +8,7 @@ using JianghuYouling.Core.Memory;
 using JianghuYouling.Core.Persistence;
 using JianghuYouling.Core.Prompt;
 using JianghuYouling.Core.Security;
+using JianghuYouling.Core.Text;
 using Newtonsoft.Json;
 
 namespace JianghuYouling
@@ -65,6 +66,7 @@ namespace JianghuYouling
 
         private const int MaxDraftBytes = 4 * 1024 * 1024;
         private const int MaxDraftChars = 2 * 1024 * 1024;
+        private const int MaxBookBytes = 8 * 1024 * 1024;
 
         /// <summary>必须在 Unity 主线程调用；把易变会话复制成不可变快照后才交给后台线程。</summary>
         public static Scope Capture(int taiwuId, int npcId, string npcName)
@@ -108,7 +110,9 @@ namespace JianghuYouling
 
                 int singleBudget = Math.Max(2200, maxChars * 42 / 100);
                 int memoryBudget = Math.Max(1400, maxChars * 28 / 100);
-                int groupBudget = Math.Max(1400, maxChars - singleBudget - memoryBudget - 1200);
+                int experienceBudget = Math.Max(800, maxChars * 18 / 100);
+                int groupBudget = Math.Max(1400,
+                    maxChars - singleBudget - memoryBudget - 1200 - experienceBudget);
                 var sb = new StringBuilder(Math.Min(maxChars, 65536));
                 int chatLines = 0, memoryCount = 0;
                 bool truncated = false;
@@ -141,6 +145,17 @@ namespace JianghuYouling
                     memoryCount++;
                 }
                 if (memories.Count == 0) Append(sb, "（尚无长期记忆）\n", maxChars, ref truncated);
+
+                Append(sb, "\n【" + scope.NpcName + "的本体生平经历】\n", maxChars, ref truncated);
+                LifeExperienceSummaryStore.Document lifeDocument =
+                    LifeExperienceSummaryStore.Load(scope.WorldId, scope.TaiwuId, scope.NpcId);
+                string lifeSummary = lifeDocument == null ? null : Clean(lifeDocument.Summary, secrets);
+                if (!string.IsNullOrWhiteSpace(lifeSummary))
+                    Append(sb, "生平梗概：" + Tail(lifeSummary, experienceBudget) + "\n",
+                        maxChars, ref truncated);
+                else
+                    Append(sb, "（生平摘要尚未整理，可在人物详情查看经历后重试）\n",
+                        maxChars, ref truncated);
 
                 Append(sb, "\n【" + scope.NpcName + "实际参与过的群聊】\n", maxChars, ref truncated);
                 List<string> groupLines = RecentGroupLines(scope, groupBudget, secrets,
@@ -254,6 +269,60 @@ namespace JianghuYouling
             }
             catch (OperationCanceledException) { return FailExport("存档已切换，本次导出已取消"); }
             catch (Exception ex) { return FailExport("小说导出失败（" + ex.GetType().Name + "）"); }
+        }
+
+        /// <summary>把书稿渲染成古书式 HTML 并原子写入导出目录；总字节上限 8MB。</summary>
+        public static ExportResult ExportBook(Scope scope, string content)
+        {
+            try
+            {
+                EnsureCurrent(scope);
+                string[] secrets = ConfiguredSecretSnapshot.LoadOrThrow();
+                string safe = CleanNovel(content, secrets);
+                if (safe.Length == 0) return FailExport("还没有可导出的小说正文");
+                if (safe.Length > MaxDraftChars) return FailExport("小说正文过长，无法安全导出");
+                Directory.CreateDirectory(scope.Exports);
+                string stem = "古书_" + SafeFileName(scope.NpcName) + "_"
+                    + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
+                string path = Path.Combine(scope.Exports, stem + ".html");
+                for (int suffix = 2; File.Exists(path); suffix++)
+                    path = Path.Combine(scope.Exports, stem + "_" + suffix + ".html");
+                var book = new AncientBookHtmlRenderer.BookInfo
+                {
+                    PersonName = scope.NpcName,
+                    BookTitle = scope.NpcName + "传",
+                    GeneratedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                    SourceNote = "素材仅取太吾与此人的单聊、此人实际参与的群聊、此人的长期记忆"
+                        + "与其本体生平经历，与世界-太吾-人物严格隔离，不含其他人物的资料。",
+                    Paragraphs = AncientBookHtmlRenderer.SplitParagraphs(safe),
+                };
+                string html = AncientBookHtmlRenderer.RenderBook(book);
+                byte[] bytes = new UTF8Encoding(true).GetBytes(html);
+                if (bytes.Length > MaxBookBytes) return FailExport("小说正文过长，无法安全导出");
+                string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    using (var stream = new FileStream(temporary, FileMode.CreateNew,
+                        FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+                    {
+                        stream.Write(bytes, 0, bytes.Length);
+                        stream.Flush(true);
+                    }
+                    var info = new FileInfo(temporary);
+                    if (!info.Exists || info.Length != bytes.LongLength)
+                        throw new InvalidDataException("古书导出暂存文件回读不一致");
+                    EnsureCurrent(scope);
+                    File.Move(temporary, path);
+                    return new ExportResult { Ok = true, Path = path };
+                }
+                catch
+                {
+                    try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
+                    throw;
+                }
+            }
+            catch (OperationCanceledException) { return FailExport("存档已切换，本次导出已取消"); }
+            catch (Exception ex) { return FailExport("古书导出失败（" + ex.GetType().Name + "）"); }
         }
 
         private static List<string> RecentSingleLines(IReadOnlyList<TalkTurn> turns,

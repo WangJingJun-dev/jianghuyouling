@@ -120,6 +120,7 @@ namespace JianghuYouling.Backend
             AddMutationMethod(RpcConst.ChangeAlertnessMethod, ChangeAlertness);
             AddMutationMethod(RpcConst.ReleaseMethod, Release);
             AddMutationMethod(RpcConst.TeachSkillMethod, TeachSkill);
+            AddMutationMethod(RpcConst.CompileSecretMethod, CompileSecret);
             DomainManager.Mod.AddModMethod(base.ModIdStr, RpcConst.GmMethod, Gm);
             AddMutationMethod(RpcConst.LeaveMethod, Leave);
             AddMutationMethod(RpcConst.EnsureCharacterProxyMethod, EnsureCharacterProxy);
@@ -1616,6 +1617,7 @@ namespace JianghuYouling.Backend
                                     if (ls.SkillTemplateId == tplS)
                                     { readingState = ls.ReadingState; known = true; break; }
                             if (!known) return Fail("not_known", "太吾并未通晓此技艺");
+                            if (readingState == 0) return Fail("not_mastered", "太吾尚未真正掌握此技艺，无法传授");
                             if (npc2.FindLearnedLifeSkillIndex(tplS) >= 0) return Fail("already", "对方已通晓此技艺");
                             try { DomainManager.Character.LearnLifeSkill(context, npcId, tplS, (byte)readingState); }
                             catch (Exception e)
@@ -1632,6 +1634,7 @@ namespace JianghuYouling.Backend
                             if (HasLearnedCombatSkill(npc2, tplS)) return Fail("already", "对方已习得此武学");
                             var cs = DomainManager.CombatSkill.GetCharCombatSkills(taiwuId);
                             if (cs != null && cs.ContainsKey(tplS)) readingState = cs[tplS].GetReadingState();
+                            if (readingState == 0) return Fail("not_mastered", "太吾尚未真正掌握此武学，无法传授");
                             try { DomainManager.Character.LearnCombatSkill(context, npcId, tplS, (ushort)readingState); }
                             catch (Exception e)
                             {
@@ -1641,7 +1644,7 @@ namespace JianghuYouling.Backend
                             if (!HasLearnedCombatSkill(npc2, tplS))
                                 return Indeterminate("teach_combat_postcondition_indeterminate", "武学传授接口已返回但受学者仍未学会");
                         }
-                        RecordTaiwuTeachLifeRecords(taiwu2, npc2, tplS, kind, readingState);
+                        RecordTaiwuTeachLifeRecords(context, taiwu2, npc2, tplS, kind, readingState);
                         var okT = new SerializableModData(); okT.Set("success", true); okT.Set("message", "ok"); return okT;
                     }
                     case "query_npc_study_progress":   // 只读：NPC 尚未完成的武学修炼与背包阅读候选。
@@ -2044,6 +2047,7 @@ namespace JianghuYouling.Backend
                             return Fail("invalid_char", "角色无效");
                         short tplS = (short)tpl;
                         short bookTpl;
+                        int readingState = 0;
                         byte pageTypes = 0;   // 正逆练:武学按 NPC 自己的练法逐页设置;技艺无正逆(恒 0)
                         if (kind == "life")
                         {
@@ -2051,8 +2055,10 @@ namespace JianghuYouling.Backend
                             var npcLifeSkills = npcC.GetLearnedLifeSkills();
                             if (npcLifeSkills != null)
                                 foreach (var ls in npcLifeSkills)
-                                    if (ls.SkillTemplateId == tplS) { known = true; break; }
+                                    if (ls.SkillTemplateId == tplS)
+                                    { readingState = ls.ReadingState; known = true; break; }
                             if (!known) return Fail("not_known", "你并未通晓此技艺,无从回忆成书");
+                            if (readingState == 0) return Fail("not_mastered", "你尚未真正掌握此技艺，无从回忆成书");
                             bookTpl = Config.LifeSkill.Instance[tplS].SkillBookId;        // 技艺→技艺书 templateId
                         }
                         else
@@ -2065,12 +2071,14 @@ namespace JianghuYouling.Backend
                                 var cs = DomainManager.CombatSkill.GetCharCombatSkills(npcId);
                                 if (cs != null && cs.TryGetValue(tplS, out var sk) && sk != null)
                                 {
+                                    readingState = sk.GetReadingState();
                                     sbyte dir = sk.GetDirection();
                                     if (dir != 0 && dir != 1) dir = 0;
                                     for (byte pg = 1; pg <= 5; pg++) pageTypes = global::GameData.Domains.Item.SkillBookStateHelper.SetNormalPageType(pageTypes, pg, dir);
                                 }
                             }
                             catch { pageTypes = 0; }
+                            if (readingState == 0) return Fail("not_mastered", "你尚未真正掌握此武学，无从回忆成书");
                             // 最新版原生 SkillBook(pageTypes, ...) 会直接读取低 3 bit 作为总纲类型并钳在 0..4；
                             // pageTypes 默认 0 会令每本回忆秘籍都固定为同一种（界面显示“承”）。按原生合法范围随机一类。
                             pageTypes = global::GameData.Domains.Item.SkillBookStateHelper.SetOutlinePageType(
@@ -4185,8 +4193,8 @@ namespace JianghuYouling.Backend
                     thing.Key.ItemType, thing.Key.TemplateId);
         }
 
-        private static void RecordTaiwuTeachLifeRecords(Character teacher, Character learner,
-            short skillTemplateId, string kind, int readingState)
+        private static void RecordTaiwuTeachLifeRecords(DataContext context,
+            Character teacher, Character learner, short skillTemplateId, string kind, int readingState)
         {
             var lifeRecords = DomainManager.LifeRecord.GetLifeRecordCollection();
             int currDate = DomainManager.World.GetCurrDate();
@@ -4209,9 +4217,11 @@ namespace JianghuYouling.Backend
                         teacherId, location, 10, bookId, page + 1);
             }
             if (recordedPage) return;
-            // 本体没有“师父指点但零书页”的记录格式；此时只记真实习得，不虚构第一篇。
-            if (life) lifeRecords.AddLearnLifeSkill(learnerId, currDate, location, skillTemplateId);
-            else lifeRecords.AddLearnCombatSkill(learnerId, currDate, location, skillTemplateId);
+            var secrets = DomainManager.Information.GetSecretInformationCollection();
+            int dataOffset = life
+                ? secrets.AddInstructOnLifeSkill(learnerId, teacherId, skillTemplateId)
+                : secrets.AddInstructOnCombatSkill(learnerId, teacherId, skillTemplateId);
+            DomainManager.Information.AddSecretInformation(context, dataOffset);
         }
 
         private const int NativeResourceCap = 999999999;
@@ -5241,6 +5251,117 @@ namespace JianghuYouling.Backend
             done.Set("message", "learned");
             done.Set("reading_state", (int)readingState);
             return done;
+        }
+
+        // 辑为秘闻:「往事成书」把已核实的真实经历用本体固定模板写成秘闻。template 白名单三选一
+        // (kidnap_private 私下掳人 / instruct_life 授业·技艺 / instruct_combat 授业·武学),
+        // 秘闻只能由本体模板生成,绝不写入任何小说正文。重复点击防重由 ExecuteJournaled
+        // 的 operation_id 账本保证;任何写入异常按不可重试终态 Indeterminate 兜底。
+        private static SerializableModData CompileSecret(DataContext context, SerializableModData p)
+        {
+            if (context == null || p == null) return Fail("invalid_request", "辑为秘闻请求不完整");
+            string template = null;
+            int actorId = 0, targetId = 0;
+            if (!p.Get("template", out template) || string.IsNullOrWhiteSpace(template)
+                || !p.Get("actor_id", out actorId) || !p.Get("target_id", out targetId))
+                return Fail("missing_parameter", "缺少参数");
+            bool kidnap = template == "kidnap_private";
+            bool instructLife = template == "instruct_life";
+            bool instructCombat = template == "instruct_combat";
+            if (!kidnap && !instructLife && !instructCombat)
+                return Fail("unsupported_template", "此经历没有可用的原生秘闻模板，未生成秘闻");
+            if (actorId <= 0 || targetId <= 0) return Fail("bad_args", "参数无效");
+            if (kidnap)
+                return CompileKidnapSecret(context, actorId, targetId);
+
+            // instruct_life / instruct_combat:actor_id=受学者(learner),target_id=授业者(teacher)
+            int skillTpl = 0;
+            if (!p.Get("skill_template_id", out skillTpl) || skillTpl < 0)
+                return Fail("missing_parameter", "缺少参数");
+            if (actorId == targetId) return Fail("bad_args", "师徒同体");
+            return CompileInstructSecret(context, actorId, targetId, skillTpl, instructLife);
+        }
+
+        // kidnap_private:actor=掳人者、target=被掳者。先核两人有效,再核验 target 正被 actor 掳走
+        // (真实经历核验,拒绝凭空捏造),最后走本体固定模板写入并尽量读回确认。
+        private static SerializableModData CompileKidnapSecret(DataContext context, int actorId, int targetId)
+        {
+            Character actor = null, target = null;
+            if (!DomainManager.Character.TryGetElement_Objects(actorId, out actor) || actor == null)
+                return Fail("actor_invalid", "掳人者无效");
+            if (!DomainManager.Character.TryGetElement_Objects(targetId, out target) || target == null)
+                return Fail("target_invalid", "被掳者无效");
+            try
+            {
+                if (target.GetKidnapperId() != actorId)
+                    return Fail("experience_not_verified", "查无此人掳走对方的真实经历，未生成秘闻");
+            }
+            catch (Exception e)
+            {
+                return Fail("experience_not_verified", "掳获关系无法核验:" + e.GetType().Name);
+            }
+            int dataOffset;
+            try
+            {
+                var secrets = DomainManager.Information.GetSecretInformationCollection();
+                dataOffset = secrets.AddKidnapInPrivate(actorId, targetId);
+                DomainManager.Information.AddSecretInformation(context, dataOffset);
+            }
+            catch (Exception e)
+            {
+                return Indeterminate("compile_secret_indeterminate", "秘闻写入状态无法确认:" + e.GetType().Name);
+            }
+            if (!SecretRecordPresent(dataOffset))
+                return Indeterminate("compile_secret_indeterminate", "秘闻写入后未能读回确认，状态未知");
+            var done = new SerializableModData();
+            done.Set("success", true); done.Set("status", "executed"); done.Set("message", "已辑为秘闻");
+            return done;
+        }
+
+        // instruct_life / instruct_combat:固定模板生成授业秘闻,skill 模板号强转 short(本体签名)。
+        private static SerializableModData CompileInstructSecret(DataContext context,
+            int learnerId, int teacherId, int skillTpl, bool life)
+        {
+            Character learner = null, teacher = null;
+            if (!DomainManager.Character.TryGetElement_Objects(learnerId, out learner) || learner == null)
+                return Fail("actor_invalid", "受学者无效");
+            if (!DomainManager.Character.TryGetElement_Objects(teacherId, out teacher) || teacher == null)
+                return Fail("target_invalid", "授业者无效");
+            int dataOffset;
+            try
+            {
+                short tpl = (short)skillTpl;
+                var secrets = DomainManager.Information.GetSecretInformationCollection();
+                dataOffset = life
+                    ? secrets.AddInstructOnLifeSkill(learnerId, teacherId, tpl)
+                    : secrets.AddInstructOnCombatSkill(learnerId, teacherId, tpl);
+                DomainManager.Information.AddSecretInformation(context, dataOffset);
+            }
+            catch (Exception e)
+            {
+                return Indeterminate("compile_secret_indeterminate", "秘闻写入状态无法确认:" + e.GetType().Name);
+            }
+            if (!SecretRecordPresent(dataOffset))
+                return Indeterminate("compile_secret_indeterminate", "秘闻写入后未能读回确认，状态未知");
+            var done = new SerializableModData();
+            done.Set("success", true); done.Set("status", "executed"); done.Set("message", "已辑为秘闻");
+            return done;
+        }
+
+        // 尽量核验:重新读集合并遍历记录偏移(ReadonlyRecordCollection.Next 公开),
+        // 确认刚写入的 dataOffset 仍在集合中;读不到任何状态时返回 false,按 Indeterminate 兜底。
+        private static bool SecretRecordPresent(int dataOffset)
+        {
+            try
+            {
+                var secrets = DomainManager.Information.GetSecretInformationCollection();
+                if (secrets == null) return false;
+                int index = -1, offset = -1;
+                while (secrets.Next(ref index, ref offset))
+                    if (offset == dataOffset) return true;
+            }
+            catch { }
+            return false;
         }
 
         // 离去:让 NPC 不再追随太吾。两种归属都要解:① 地图跟随名单(TaiwuUnfollowNpc,不在名单则内部空操作,安全);
@@ -7318,16 +7439,29 @@ namespace JianghuYouling.Backend
                     return Fail("taiwu_unavailable", "当前太吾不存在或尚未载入");
 
                 var combatIds = taiwu.GetLearnedCombatSkills();
+                var combatProgressIds = new List<string>();
+                var combatStates = DomainManager.CombatSkill.GetCharCombatSkills(taiwuId);
+                if (combatStates != null)
+                    foreach (var skill in combatStates)
+                        if (skill.Value != null && skill.Value.GetReadingState() != 0)
+                            combatProgressIds.Add(skill.Key.ToString(CultureInfo.InvariantCulture));
                 var lifeIds = new List<string>();
+                var lifeProgressIds = new List<string>();
                 var learnedLifeSkills = taiwu.GetLearnedLifeSkills();
                 if (learnedLifeSkills != null)
                     foreach (var learned in learnedLifeSkills)
+                    {
                         lifeIds.Add(learned.SkillTemplateId.ToString(CultureInfo.InvariantCulture));
+                        if (learned.ReadingState != 0)
+                            lifeProgressIds.Add(learned.SkillTemplateId.ToString(CultureInfo.InvariantCulture));
+                    }
                 ret.Set("success", true);
                 ret.Set("message", "ok");
                 ret.Set("combat_ids", combatIds == null ? string.Empty
                     : string.Join(",", combatIds.ConvertAll(x => x.ToString(CultureInfo.InvariantCulture)).ToArray()));
                 ret.Set("life_ids", string.Join(",", lifeIds.ToArray()));
+                ret.Set("combat_progress_ids", string.Join(",", combatProgressIds.ToArray()));
+                ret.Set("life_progress_ids", string.Join(",", lifeProgressIds.ToArray()));
                 return ret;
             }
             catch (Exception e)

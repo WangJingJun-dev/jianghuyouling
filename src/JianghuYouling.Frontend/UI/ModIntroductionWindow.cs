@@ -364,7 +364,7 @@ namespace JianghuYouling
             if (_openGithubGo != null) _openGithubGo.SetActive(openSource);
         }
 
-        static bool TryLoadSupportQr(out Sprite sprite)
+        internal static bool TryLoadSupportQr(out Sprite sprite)
         {
             sprite = _supportQrSprite;
             if (sprite != null) return true;

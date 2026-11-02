@@ -27,9 +27,12 @@
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\CommissionStore.cs" Link="Production\CommissionStore.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\ThinkingPromptRuleStore.cs" Link="Production\ThinkingPromptRuleStore.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\ImageGenerationConfig.cs" Link="Production\ImageGenerationConfig.cs" />
+    <Compile Include="..\..\src\JianghuYouling.Frontend\Game\TtsConfig.cs" Link="Production\TtsConfig.cs" />
+    <Compile Include="..\..\src\JianghuYouling.Frontend\Game\MiniMaxConfig.cs" Link="Production\MiniMaxConfig.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\TtsSettings.cs" Link="Production\TtsSettings.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\AssistantEnabledStore.cs" Link="Production\AssistantEnabledStore.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\AssistantProactiveStore.cs" Link="Production\AssistantProactiveStore.cs" />
+    <Compile Include="..\..\src\JianghuYouling.Frontend\Game\AssistantPersonaStore.cs" Link="Production\AssistantPersonaStore.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\NpcProactiveChatStore.cs" Link="Production\NpcProactiveChatStore.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\NpcChatUnreadStore.cs" Link="Production\NpcChatUnreadStore.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\GhostwriteLengthStore.cs" Link="Production\GhostwriteLengthStore.cs" />
@@ -45,6 +48,7 @@
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\ConversationNavigationStore.cs" Link="Production\ConversationNavigationStore.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\WorldBookStore.cs" Link="Production\WorldBookStore.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\StructuredWorldBookStore.cs" Link="Production\StructuredWorldBookStore.cs" />
+    <Compile Include="..\..\src\JianghuYouling.Frontend\Game\WorldBookIoCoordinator.cs" Link="Production\WorldBookIoCoordinator.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Talk\ConversationSessionIndexStore.cs" Link="Production\ConversationSessionIndexStore.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\UI\LongTextEditorOperationGate.cs" Link="Production\LongTextEditorOperationGate.cs" />
     <Compile Include="..\..\src\JianghuYouling.Frontend\Game\MonthlyAgentRequestBudget.cs" Link="Production\MonthlyAgentRequestBudget.cs" />

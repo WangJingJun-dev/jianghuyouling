@@ -38,31 +38,52 @@ namespace JianghuYouling
             if (instance != null) try { Destroy(instance.gameObject); } catch { }
         }
 
-        // 从场景中任一 TextMeshProUGUI 借游戏中文字体;借不到则返回 null(TMP 退化为默认字体)
-        TMP_FontAsset ResolveFont()
+        // 动态 TMP 组件会在 AddComponent 的 Awake 中读取默认字体，必须先完成字体解析与默认字体设置。
+        internal TMP_FontAsset ResolveFont()
         {
-            if (_font != null) return _font;
-            try
+            if (_font == null)
             {
-                var texts = Resources.FindObjectsOfTypeAll<TextMeshProUGUI>();
-                foreach (var t in texts)
+                try
                 {
-                    // 跳过我们自己面板里的文本,优先借游戏自带文本的字体
-                    if (t != null && t.font != null && t.gameObject.scene.IsValid())
+                    var texts = Resources.FindObjectsOfTypeAll<TextMeshProUGUI>();
+                    foreach (var t in texts)
                     {
-                        _font = t.font;
-                        break;
+                        if (t != null && t.font != null && t.gameObject.scene.IsValid())
+                        {
+                            _font = t.font;
+                            break;
+                        }
+                    }
+                    if (_font == null)
+                    {
+                        foreach (var t in texts)
+                            if (t != null && t.font != null) { _font = t.font; break; }
+                    }
+                    if (_font == null)
+                    {
+                        var fonts = Resources.FindObjectsOfTypeAll<TMP_FontAsset>();
+                        if (fonts != null && fonts.Length > 0) _font = fonts[0];
                     }
                 }
-                // 退一步:连场景内的也借不到,就取任意一个非空字体
-                if (_font == null)
-                {
-                    foreach (var t in texts)
-                        if (t != null && t.font != null) { _font = t.font; break; }
-                }
+                catch { _font = null; }
             }
-            catch { _font = null; }
+            ApplyTmpDefaultFont(_font);
+            GlyphSanitizer.SetFont(_font);
             return _font;
+        }
+
+        static void ApplyTmpDefaultFont(TMP_FontAsset font)
+        {
+            if (font == null) return;
+            try
+            {
+                var settings = TMP_Settings.instance;
+                if (settings == null) return;
+                var field = typeof(TMP_Settings).GetField("m_defaultFontAsset",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (field != null) field.SetValue(settings, font);
+            }
+            catch { }
         }
     }
 }

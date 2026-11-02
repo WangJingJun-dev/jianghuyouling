@@ -26,6 +26,7 @@ namespace JianghuYouling.Shared
         public const string QueryOperationMethod = "JYL_QueryOperation";  // 查询持久化的副作用回执，用于 RPC 回包丢失后恢复
         public const string AckOperationMethod = "JYL_AckOperation";      // 前端 durable journal 已提交终态后确认回执；后端方可压缩完整回执
         public const string QueryNativeInteractionAuditMethod = "JYL_QueryNativeInteractionAudit"; // 原版人物互动落地审计：仅回传后端确认的真实状态写入
+        public const string CompileSecretMethod = "JYL_CompileSecret"; // 辑为秘闻:固定模板原生秘闻写入(防重放走 operation ledger);后端 try/catch
 
         // 副作用 RPC v2 统一协议。operation_id 为 32 位小写 hex；未 ACK 回执绝不淘汰，
         // 已 ACK 回执可压缩为只防重、不再携带业务字段的存档墓碑。

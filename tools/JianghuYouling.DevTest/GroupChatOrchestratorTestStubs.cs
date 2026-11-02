@@ -129,6 +129,7 @@ namespace JianghuYouling
     public static class ChatWindow
     {
         public static void NotifyConversationIdentityMigrated(int taiwuId, int oldId, int newId) { }
+        internal static void NotifyImageGenerationDisabled() { }
     }
 
     public static class PortraitService

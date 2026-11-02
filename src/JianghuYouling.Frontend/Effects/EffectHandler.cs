@@ -2459,6 +2459,20 @@ namespace JianghuYouling.Effects
             CallBoolRpc(RpcConst.ReleaseMethod, d => { d.Set("npc_id", npcId); d.Set("target_id", targetId); }, onDone, stableOperationId);
         }
 
+        /// <summary>把书稿辑为秘闻：以 NPC(actor) 视角为太吾(target) 生成一条秘闻。走后端 CompileSecret(需后端权限),异步回调(ok,msg)。</summary>
+        public static void ApplyCompileSecret(int npcId, int taiwuId, Action<bool, string> onDone,
+            string stableOperationId)
+        {
+            if (npcId <= 0 || taiwuId <= 0 || npcId == taiwuId) { onDone?.Invoke(false, "参数无效"); return; }
+            CallBoolRpc(RpcConst.CompileSecretMethod, d =>
+                {
+                    d.Set("template", "kidnap_private");
+                    d.Set("actor_id", npcId);
+                    d.Set("target_id", taiwuId);
+                },
+                onDone, stableOperationId);
+        }
+
         /// <summary>杀人:NPC 取目标性命。后端硬校验精纯>=目标(相等可成) + try/catch,异步回调(ok,msg)。</summary>
         public static void ApplyKill(int npcId, int targetId, Action<bool, string> onDone)
             => ApplyKill(npcId, targetId, onDone, null);
@@ -2654,13 +2668,24 @@ namespace JianghuYouling.Effects
         /// <summary>从后端 Character 权威状态读取太吾完整已学武学/技艺，不依赖前端菜单显示切片。</summary>
         public static void QueryTaiwuLearnedSkills(int taiwuId,
             Action<List<short>, List<short>, string> onResult)
+            => QueryTaiwuSkills(taiwuId, (combat, life, teachableCombat, teachableLife, error)
+                => onResult?.Invoke(combat, life, error));
+
+        /// <summary>只返回具有实际研读进度的武学/技艺，用于传授和写书赠送。</summary>
+        public static void QueryTaiwuTeachableSkills(int taiwuId,
+            Action<List<short>, List<short>, string> onResult)
+            => QueryTaiwuSkills(taiwuId, (combat, life, teachableCombat, teachableLife, error)
+                => onResult?.Invoke(teachableCombat, teachableLife, error));
+
+        private static void QueryTaiwuSkills(int taiwuId,
+            Action<List<short>, List<short>, List<short>, List<short>, string> onResult)
         {
             if (taiwuId <= 0)
-            { onResult?.Invoke(null, null, "无效太吾"); return; }
+            { onResult?.Invoke(null, null, null, null, "无效太吾"); return; }
             string modId = Plugin.Instance?.ModIdStr;
             if (string.IsNullOrWhiteSpace(modId)) modId = RpcConst.FallbackModId;
             if (IsWorldRpcBlocked())
-            { onResult?.Invoke(null, null, "已离开存档"); return; }
+            { onResult?.Invoke(null, null, null, null, "已离开存档"); return; }
             var p = new SerializableModData();
             p.Set("taiwu_id", taiwuId);
             ModDomainMethod.AsyncCall.CallModMethodWithParamAndRet(
@@ -2671,12 +2696,20 @@ namespace JianghuYouling.Effects
                     {
                         SerializableModData resp = null;
                         Serializer.Deserialize(pool, offset, ref resp);
-                        bool ok = false; string combatRaw = null, lifeRaw = null, message = null;
+                        bool ok = false;
+                        string combatRaw = null, lifeRaw = null, message = null;
+                        string combatProgressRaw = null, lifeProgressRaw = null;
                         resp?.Get("success", out ok);
                         resp?.Get("combat_ids", out combatRaw);
                         resp?.Get("life_ids", out lifeRaw);
+                        resp?.Get("combat_progress_ids", out combatProgressRaw);
+                        resp?.Get("life_progress_ids", out lifeProgressRaw);
                         resp?.Get("message", out message);
-                        if (!ok) { onResult?.Invoke(null, null, message ?? "读取失败"); return; }
+                        if (!ok)
+                        {
+                            onResult?.Invoke(null, null, null, null, message ?? "读取失败");
+                            return;
+                        }
                         List<short> ParseIds(string raw)
                         {
                             var ids = new List<short>();
@@ -2685,10 +2718,11 @@ namespace JianghuYouling.Effects
                                 if (short.TryParse(part, out short id) && !ids.Contains(id)) ids.Add(id);
                             return ids;
                         }
-                        onResult?.Invoke(ParseIds(combatRaw), ParseIds(lifeRaw), null);
+                        onResult?.Invoke(ParseIds(combatRaw), ParseIds(lifeRaw),
+                            ParseIds(combatProgressRaw), ParseIds(lifeProgressRaw), null);
                     }
                     catch (Exception e)
-                    { onResult?.Invoke(null, null, "读取异常:" + e.GetType().Name); }
+                    { onResult?.Invoke(null, null, null, null, "读取异常:" + e.GetType().Name); }
                 });
         }
 

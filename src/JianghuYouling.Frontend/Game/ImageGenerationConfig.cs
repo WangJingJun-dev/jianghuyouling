@@ -27,6 +27,7 @@ namespace JianghuYouling
 
         public sealed class Values
         {
+            public bool Enabled;
             public string Provider = DefaultProvider;
             public string Endpoint = DefaultEndpoint;
             public string ApiKey = "";
@@ -47,6 +48,7 @@ namespace JianghuYouling
                 if (!ProtectedConfigFile.TryGetReplicaPresence(path, out bool any, out _) || !any)
                     return result;
                 if (!ProtectedConfigFile.TryLoad(path, out JObject o, out string key, out _)) return result;
+                result.Enabled = o?["enabled"]?.Value<bool?>() ?? false;
                 result.Provider = Text(o, "provider", DefaultProvider);
                 result.Endpoint = Text(o, "endpoint", DefaultEndpoint);
                 result.ApiKey = key ?? "";
@@ -72,6 +74,8 @@ namespace JianghuYouling
         {
             value = LoadRaw();
             error = null;
+            if (!value.Enabled)
+            { error = "生图功能未启用"; value = null; return false; }
             string provider = (value.Provider ?? "").Trim();
             if (!ImageGenerationClient.IsSupportedProvider(provider))
             { error = "生图协议无效"; value = null; return false; }
@@ -80,8 +84,8 @@ namespace JianghuYouling
             { error = "生图接口不是完整的 HTTP(S) 地址"; value = null; return false; }
             if (endpoint.Scheme == Uri.UriSchemeHttp && !endpoint.IsLoopback)
             { error = "远程生图接口必须使用 HTTPS"; value = null; return false; }
-            if (string.IsNullOrWhiteSpace(value.ApiKey) && !endpoint.IsLoopback)
-            { error = "远程生图接口未配置独立 API Key"; value = null; return false; }
+            if (string.IsNullOrWhiteSpace(value.ApiKey))
+            { error = "启用生图功能必须配置独立 API Key"; value = null; return false; }
             bool comfy = string.Equals(provider, ImageGenerationClient.ProviderComfyUI,
                 StringComparison.OrdinalIgnoreCase);
             if (comfy && !endpoint.IsLoopback)
@@ -101,6 +105,11 @@ namespace JianghuYouling
         {
             LastSaveError = null;
             value = value ?? new Values();
+            if (value.Enabled && string.IsNullOrWhiteSpace(value.ApiKey))
+            {
+                LastSaveError = "启用生图功能必须填写独立 API Key";
+                return false;
+            }
             // 空 Key 既可能表示“从未启用/玩家明确清空”，也可能只是已有 DPAPI 配置
             // 暂时不可读。后一种情况绝不能把可恢复副本覆盖成空配置。
             if (string.IsNullOrWhiteSpace(value.ApiKey))
@@ -153,25 +162,28 @@ namespace JianghuYouling
             value.Provider = provider;
             value.WorkflowPath = workflowPath;
             value.WorkflowJson = workflowForValidation;
-            // 配置页允许把远程生图保持在“尚未启用”状态（Key 为空）并保存其它设置。
-            // 这里只给内存中的校验请求临时补非空值；落盘仍保存真实空 Key，运行时
-            // TryResolve 也继续 fail-closed，直到玩家真正配置凭据。
             if (!TryValidateValues(value, out string validationError,
-                allowMissingRemoteApiKeyForSave: true))
+                allowMissingApiKeyForSave: !value.Enabled))
             { LastSaveError = validationError; return false; }
             var metadata = new JObject
             {
+                ["enabled"] = value.Enabled,
                 ["provider"] = provider,
                 ["endpoint"] = (value.Endpoint ?? "").Trim(),
                 ["model"] = (value.Model ?? "").Trim(),
                 ["size"] = ImageGenerationClient.FixedSizeForProvider(provider),
                 ["style"] = style,
-                ["watermark"] = value.Watermark
-                , ["workflowPath"] = workflowPath
+                ["watermark"] = value.Watermark,
+                ["workflowPath"] = workflowPath
             };
             bool ok = ProtectedConfigFile.TrySave(PathFor(), metadata, (value.ApiKey ?? "").Trim(), out string error);
             LastSaveError = error;
-            if (ok) Interlocked.Increment(ref _revision);
+            if (ok)
+            {
+                Interlocked.Increment(ref _revision);
+                if (!value.Enabled)
+                    try { ChatWindow.NotifyImageGenerationDisabled(); } catch { }
+            }
             return ok;
         }
 
@@ -213,16 +225,13 @@ namespace JianghuYouling
         }
 
         static bool TryValidateValues(Values value, out string error,
-            bool allowMissingRemoteApiKeyForSave = false)
+            bool allowMissingApiKeyForSave = false)
         {
             byte[] reference = new byte[64];
             byte[] signature = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
             Buffer.BlockCopy(signature, 0, reference, 0, signature.Length);
             string apiKey = value.ApiKey;
-            if (allowMissingRemoteApiKeyForSave && string.IsNullOrWhiteSpace(apiKey)
-                && Uri.TryCreate((value.Endpoint ?? string.Empty).Trim(), UriKind.Absolute,
-                    out Uri endpoint)
-                && !endpoint.IsLoopback)
+            if (allowMissingApiKeyForSave && string.IsNullOrWhiteSpace(apiKey))
                 apiKey = string.Concat("configuration", "-", "validation", "-", "only");
             return ImageGenerationClient.TryValidate(new ImageGenerationRequest
             {

@@ -26,6 +26,7 @@ namespace JianghuYouling
         {
             try
             {
+                if (!LoadEnabled()) return (null, null, null, null);
                 if (!EnsureLegacyMiniMaxProtected(out _)) return (null, null, null, null);
                 var p = PathFor();
                 if (!ProtectedConfigFile.TryGetReplicaPresence(p, out bool anyReplica, out _))
@@ -34,7 +35,7 @@ namespace JianghuYouling
                 {
                     if (!ProtectedConfigFile.TryLoad(p, out var o, out var k, out _)) return (null, null, null, null);
                     string b = o["baseUrl"]?.ToString(), m = o["model"]?.ToString(), prov = o["provider"]?.ToString();
-                    // 语音整体可选:接口/模型默认已填好,真正的开关是「密钥」——没填密钥=不启用。
+                    // 总开关与独立密钥同时就绪才允许合成；普通参数保存不改变开关状态。
                     if (!string.IsNullOrWhiteSpace(k) && !string.IsNullOrWhiteSpace(b))
                     {
                         if (string.IsNullOrWhiteSpace(m))
@@ -71,7 +72,8 @@ namespace JianghuYouling
                 && m == "seed-audio-1.0";
         }
 
-        /// <summary>语音是否已启用(填了密钥)。接口/模型有默认值,故用密钥作整体开关;未启用时「语音」按钮引导去设置页。</summary>
+        public static bool IsEnabled => LoadEnabled();
+
         public static bool IsConfigured { get { var r = Resolve(); return !string.IsNullOrWhiteSpace(r.apiKey); } }
 
         /// <summary>读 tts.json 原始(provider/baseUrl/apiKey),供设置页回填;无则返回空串三元组。</summary>
@@ -93,7 +95,29 @@ namespace JianghuYouling
             return ("", "", "");
         }
 
-        public static bool SaveExplicit(string provider, string baseUrl, string apiKey, string model)
+        private static bool LoadEnabled()
+        {
+            try
+            {
+                if (!EnsureLegacyMiniMaxProtected(out _)) return false;
+                string path = PathFor();
+                if (!ProtectedConfigFile.TryGetReplicaPresence(path, out bool anyReplica, out _) || !anyReplica)
+                    return false;
+                return ProtectedConfigFile.TryLoad(path, out JObject o, out _, out _)
+                    && o?["enabled"]?.Value<bool?>() == true;
+            }
+            catch { return false; }
+        }
+
+        public static bool SetEnabled(bool enabled)
+        {
+            var raw = LoadRaw();
+            TtsSettings settings = TtsSettings.Load();
+            return SaveExplicit(raw.provider, raw.baseUrl, raw.apiKey, settings.Model, enabled);
+        }
+
+        public static bool SaveExplicit(string provider, string baseUrl, string apiKey, string model,
+            bool? enabled = null)
         {
             LastSaveError = null;
             if (!EnsureLegacyMiniMaxProtected(out var migrationError))
@@ -101,8 +125,15 @@ namespace JianghuYouling
                 LastSaveError = migrationError;
                 return false;
             }
+            bool effectiveEnabled = enabled ?? LoadEnabled();
+            if (effectiveEnabled && string.IsNullOrWhiteSpace(apiKey))
+            {
+                LastSaveError = "启用语音功能必须填写独立 API Key";
+                return false;
+            }
             var o = new JObject
             {
+                ["enabled"] = effectiveEnabled,
                 ["provider"] = provider ?? "",
                 ["baseUrl"] = baseUrl ?? "",
                 ["model"] = model ?? ""

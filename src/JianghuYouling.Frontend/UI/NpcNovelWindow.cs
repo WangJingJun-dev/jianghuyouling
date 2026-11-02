@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using JianghuYouling.Core.Llm;
 using JianghuYouling.Core.Prompt;
+using JianghuYouling.Effects;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -19,7 +20,8 @@ namespace JianghuYouling
         static TextMeshProUGUI _title, _subtitle, _sourceHint, _status, _output;
         static TMP_InputField _promptInput;
         static ScrollRect _outputScroll;
-        static Button _generateButton, _exportButton, _savePromptButton, _restoreButton;
+        static Button _generateButton, _exportButton, _exportBookButton, _compileSecretButton,
+            _savePromptButton, _restoreButton;
         static TextMeshProUGUI _generateLabel;
         static int _taiwuId, _npcId;
         static string _npcName;
@@ -94,7 +96,8 @@ namespace JianghuYouling
             _title = _subtitle = _sourceHint = _status = _output = _generateLabel = null;
             _promptInput = null;
             _outputScroll = null;
-            _generateButton = _exportButton = _savePromptButton = _restoreButton = null;
+            _generateButton = _exportButton = _exportBookButton = _compileSecretButton = null;
+            _savePromptButton = _restoreButton = null;
             _scope = null;
             _taiwuId = _npcId = 0;
             _npcName = null;
@@ -125,7 +128,7 @@ namespace JianghuYouling
             if (client == null || !string.IsNullOrWhiteSpace(client.ConfigurationError))
             {
                 SetStatus("尚未配置可用的大模型接口", ErrorColor());
-                try { ConfigWindow.Open(_font); } catch { }
+                try { AISettingsHost.OpenModelSettings(); } catch { }
                 return;
             }
             CancelCurrent();
@@ -276,6 +279,60 @@ namespace JianghuYouling
             try { GUIUtility.systemCopyBuffer = result.Path; } catch { }
             SetStatus("小说已导出，文件路径已复制：" + result.Path,
                 new Color(0.66f, 0.82f, 0.66f, 1f));
+        }
+
+        static void StartExportBook()
+        {
+            string content = _output?.text ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(content) || content.StartsWith("尚未落笔", StringComparison.Ordinal))
+            {
+                SetStatus("还没有可导出的小说正文", ErrorColor());
+                return;
+            }
+            NpcNovelDataService.Scope captured = _scope;
+            long epoch = _requestEpoch;
+            SetStatus("正在装订古书……", Muted);
+            TalkEntryHost host = TalkEntryHost.Instance;
+            if (host != null) host.StartCoroutine(ExportBookRoutine(captured, content, epoch));
+        }
+
+        static IEnumerator ExportBookRoutine(NpcNovelDataService.Scope captured, string content, long epoch)
+        {
+            Task<NpcNovelDataService.ExportResult> task = Task.Run(
+                () => NpcNovelDataService.ExportBook(captured, content));
+            yield return new WaitUntil(() => task.IsCompleted || !RequestCurrent(epoch, captured));
+            if (!RequestCurrent(epoch, captured)) yield break;
+            NpcNovelDataService.ExportResult result;
+            try { result = task.Result; }
+            catch (Exception ex) { SetStatus("古书导出失败（" + ex.GetType().Name + "）", ErrorColor()); yield break; }
+            if (result == null || !result.Ok)
+            {
+                SetStatus(result?.Error ?? "古书导出失败", ErrorColor());
+                yield break;
+            }
+            try { GUIUtility.systemCopyBuffer = result.Path; } catch { }
+            SetStatus("古书已导出，文件路径已复制：" + result.Path,
+                new Color(0.66f, 0.82f, 0.66f, 1f));
+        }
+
+        static void StartCompileSecret()
+        {
+            NpcNovelDataService.Scope scope = _scope;
+            if (scope == null || !scope.IsCurrent || _npcId <= 0 || _taiwuId <= 0)
+            {
+                SetStatus("当前人物或存档状态无效", ErrorColor());
+                return;
+            }
+            SetBusy(true);
+            SetStatus("正在把书稿辑为秘闻……", Muted);
+            EffectHandler.ApplyCompileSecret(_npcId, _taiwuId,
+                (ok, msg) =>
+                {
+                    SetBusy(false);
+                    SetStatus(ok ? "已辑为秘闻：" + msg : "未生成秘闻：" + msg,
+                        ok ? new Color(0.66f, 0.82f, 0.66f, 1f) : ErrorColor());
+                },
+                "novelsecret:" + scope.WorldId + ":" + _taiwuId + ":" + _npcId + ":kidnap_private");
         }
 
         static void Build()
@@ -431,25 +488,37 @@ namespace JianghuYouling
             _status.enableWordWrapping = false;
             _status.color = Muted;
             Anchor(_status.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 0f),
-                new Vector2(22f, 20f), new Vector2(-490f, 62f));
+                new Vector2(22f, 20f), new Vector2(-646f, 62f));
 
-            GameObject exportGo = NewButton("ExportNovel", panel.transform, "导出书稿", 17f,
+            GameObject exportGo = NewButton("ExportNovel", panel.transform, "导出 TXT", 17f,
                 new Color(0.18f, 0.22f, 0.21f, 0.98f), out _exportButton);
             Anchor(exportGo.GetComponent<RectTransform>(), new Vector2(1f, 0f), new Vector2(1f, 0f),
-                new Vector2(-466f, 14f), new Vector2(-322f, 62f));
+                new Vector2(-382f, 14f), new Vector2(-270f, 62f));
             _exportButton.onClick.AddListener(StartExport);
+
+            GameObject exportBookGo = NewButton("ExportBook", panel.transform, "导出古书", 17f,
+                new Color(0.18f, 0.22f, 0.21f, 0.98f), out _exportBookButton);
+            Anchor(exportBookGo.GetComponent<RectTransform>(), new Vector2(1f, 0f), new Vector2(1f, 0f),
+                new Vector2(-508f, 14f), new Vector2(-396f, 62f));
+            _exportBookButton.onClick.AddListener(StartExportBook);
+
+            GameObject compileSecretGo = NewButton("CompileSecret", panel.transform, "辑为秘闻", 17f,
+                new Color(0.18f, 0.22f, 0.21f, 0.98f), out _compileSecretButton);
+            Anchor(compileSecretGo.GetComponent<RectTransform>(), new Vector2(1f, 0f), new Vector2(1f, 0f),
+                new Vector2(-634f, 14f), new Vector2(-522f, 62f));
+            _compileSecretButton.onClick.AddListener(StartCompileSecret);
 
             GameObject generateGo = NewButton("GenerateNovel", panel.transform, "开始写作", 18f,
                 Primary, out _generateButton);
             Anchor(generateGo.GetComponent<RectTransform>(), new Vector2(1f, 0f), new Vector2(1f, 0f),
-                new Vector2(-314f, 14f), new Vector2(-154f, 62f));
+                new Vector2(-256f, 14f), new Vector2(-144f, 62f));
             _generateLabel = generateGo.GetComponentInChildren<TextMeshProUGUI>();
             _generateButton.onClick.AddListener(StartGeneration);
 
             GameObject footerCloseGo = NewButton("FooterClose", panel.transform, "关闭", 18f,
                 new Color(0.18f, 0.22f, 0.21f, 0.98f), out Button footerClose);
             Anchor(footerCloseGo.GetComponent<RectTransform>(), new Vector2(1f, 0f), new Vector2(1f, 0f),
-                new Vector2(-146f, 14f), new Vector2(-18f, 62f));
+                new Vector2(-130f, 14f), new Vector2(-18f, 62f));
             footerClose.onClick.AddListener(Hide);
 
             try { PopupRegistry.Register(_root, Hide); } catch { }
@@ -460,6 +529,8 @@ namespace JianghuYouling
         {
             if (_generateButton != null) _generateButton.interactable = !busy;
             if (_exportButton != null) _exportButton.interactable = !busy;
+            if (_exportBookButton != null) _exportBookButton.interactable = !busy;
+            if (_compileSecretButton != null) _compileSecretButton.interactable = !busy;
             if (_savePromptButton != null) _savePromptButton.interactable = !busy;
             if (_restoreButton != null) _restoreButton.interactable = !busy;
             if (_promptInput != null) _promptInput.interactable = !busy;

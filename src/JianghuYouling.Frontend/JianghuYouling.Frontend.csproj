@@ -12,8 +12,6 @@
     <Managed>$(TaiwuGameDir)\The Scroll of Taiwu_Data\Managed</Managed>
     <!-- 编译后部署到游戏 Mod 目录(游戏测试用) -->
     <ModDeploy>$(TaiwuGameDir)\Mod\JianghuYouling\Plugins</ModDeploy>
-    <!-- 工坊上传用的中文名目录;构建时若存在则一并同步(免手动复制、保 Config 版本与 DLL 一致) -->
-    <PublishDeploy>$(TaiwuWorkshopDir)</PublishDeploy>
   </PropertyGroup>
 
   <!-- net48 引用程序集从 NuGet 拉取，免装系统 targeting pack -->
@@ -87,11 +85,6 @@
     <!-- mod 清单(含模组管理设置页声明)同步到 mod 根目录 -->
     <Copy SourceFiles="$(MSBuildThisFileDirectory)..\..\deploy\Config.lua" DestinationFolder="$(ModDeploy)\.." SkipUnchangedFiles="false" />
     <Copy SourceFiles="@(WorkshopAsset)" DestinationFolder="$(ModDeploy)\.." SkipUnchangedFiles="false" />
-    <!-- 同步到工坊用的中文名目录(若存在):Config + 前端/Core DLL,免手动复制 -->
-    <MakeDir Directories="$(PublishDeploy)\Plugins" Condition="Exists('$(PublishDeploy)')" />
-    <Copy SourceFiles="$(TargetPath);$(TargetDir)JianghuYouling.Core.dll" DestinationFolder="$(PublishDeploy)\Plugins" SkipUnchangedFiles="false" Condition="Exists('$(PublishDeploy)')" />
-    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\..\deploy\Config.lua" DestinationFolder="$(PublishDeploy)" SkipUnchangedFiles="false" Condition="Exists('$(PublishDeploy)')" />
-    <Copy SourceFiles="@(WorkshopAsset)" DestinationFolder="$(PublishDeploy)" SkipUnchangedFiles="false" Condition="Exists('$(PublishDeploy)')" />
   </Target>
 
 </Project>

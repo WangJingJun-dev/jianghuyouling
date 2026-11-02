@@ -1,7 +1,9 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using FrameWork.UISystem.UIElements;
 using Game.Views.EventWindow;          // ViewEventWindow / EventWindowOption (1.0)
+using GameData.Domains.TaiwuEvent.DisplayEvent;
 // 全局命名空间另有一个同名 EventWindowCharacter(: Refers,无 nameLabel),用别名锁定到 UI 组件那个
 using EwChar = Game.Components.EventWindow.EventWindowCharacter;
 using TMPro;
@@ -17,12 +19,27 @@ namespace JianghuYouling
         static readonly FieldInfo RightCharField = typeof(ViewEventWindow).GetField("rightCharacter", NP);
         static readonly FieldInfo MainRootField = typeof(ViewEventWindow).GetField("mainWindowRoot", NP);
         static readonly FieldInfo FarewellButtonField = typeof(ViewEventWindow).GetField("commonButtonFinish", NP);
+        static readonly FieldInfo OperateAreaField = typeof(ViewEventWindow).GetField("operateArea", NP);
+        static readonly FieldInfo OptionScrollField = typeof(ViewEventWindow).GetField("optionScroll", NP);
+        static readonly FieldInfo OptionContainerField = typeof(ViewEventWindow).GetField("optionContainer", NP);
+        static readonly FieldInfo InteractionGroupField = typeof(ViewEventWindow).GetField("interactionTypeTogGroup", NP);
+        static readonly FieldInfo CommonOptionField = typeof(ViewEventWindow).GetField("commonOption", NP);
         static readonly FieldInfo CurCharIdField = typeof(EwChar).GetField("_curCharacterId", NP);
 
         public static EwChar Right(ViewEventWindow w) => w == null ? null : RightCharField?.GetValue(w) as EwChar;
         public static RectTransform MainRoot(ViewEventWindow w) => w == null ? null : MainRootField?.GetValue(w) as RectTransform;
         public static Button FarewellButton(ViewEventWindow w)
             => w == null ? null : FarewellButtonField?.GetValue(w) as Button;
+        public static RectTransform OperateArea(ViewEventWindow w)
+            => w == null ? null : OperateAreaField?.GetValue(w) as RectTransform;
+        public static CScrollRect OptionScroll(ViewEventWindow w)
+            => w == null ? null : OptionScrollField?.GetValue(w) as CScrollRect;
+        public static RectTransform OptionContainer(ViewEventWindow w)
+            => w == null ? null : OptionContainerField?.GetValue(w) as RectTransform;
+        public static CToggleGroup InteractionGroup(ViewEventWindow w)
+            => w == null ? null : InteractionGroupField?.GetValue(w) as CToggleGroup;
+        public static GameObject CommonOption(ViewEventWindow w)
+            => w == null ? null : CommonOptionField?.GetValue(w) as GameObject;
 
         // —— 好感条原生动画钩子:右侧 NPC 的好感监视器 + 私有 FillFavorProgress(改完好感后手动触发升/降动画) ——
         static readonly FieldInfo BasicMonitorF = typeof(EwChar).GetField("_basicInfoMonitor", NP);
@@ -168,7 +185,7 @@ namespace JianghuYouling
         }
     }
 
-    /// <summary>在 ViewEventWindow 注入"AI 对话"与"互动记录"按钮，保持幂等并防止换人瞬间误触。</summary>
+    /// <summary>在 ViewEventWindow 注入"细聊"与"互动记录"按钮，保持幂等并防止换人瞬间误触。</summary>
     internal static class TalkEntryInjector
     {
         const string EntryName = "JHYL_TalkEntry";
@@ -209,32 +226,41 @@ namespace JianghuYouling
                 });
             }
             bool confirmedCaptive = _captiveKnown && _captiveByTaiwu && _captiveNpcId == npcId;
+            var operateArea = EwReflect.OperateArea(w);
+            bool nativeSelectionActive = operateArea != null && operateArea.gameObject.activeSelf;
             bool show = rc != null && rc.gameObject.activeSelf && root != null
                 && (ordinaryChat || EwReflect.CanChatNow(npcId, confirmedCaptive));
-            var t = root != null ? root.Find(EntryName) : null;
+            bool showTalk = show && !nativeSelectionActive;
+            MiscInteractionTab.TryRefresh(w, show);
+            RemoveLegacyTalkEntry(w);
+            NativeTalkOption.TryRefresh(w, showTalk);
             var recording = root != null ? root.Find(RecordingEntryName) : null;
 
-            if (!show)
-            {
-                if (t != null && t.gameObject.activeSelf) t.gameObject.SetActive(false);
-                if (recording != null && recording.gameObject.activeSelf)
-                    recording.gameObject.SetActive(false);
-                return;
-            }
-            if (t == null) { t = Create(w, rc, root); if (t == null) return; }
+            if (!show && recording != null && recording.gameObject.activeSelf)
+                recording.gameObject.SetActive(false);
+            if (!show) return;
             if (recording == null)
             {
                 recording = CreateRecordingToggle(w, rc, root);
                 if (recording == null) return;
             }
-            if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
             if (!recording.gameObject.activeSelf) recording.gameObject.SetActive(true);
-            EnsureInjectedOrder(root, t, recording);
-            var btn = t.GetComponent<Button>();
+            EnsureLastSibling(recording);
             bool interactable = Time.unscaledTime >= _interactiveAt;
-            if (btn != null && btn.interactable != interactable) btn.interactable = interactable;
+            NativeTalkOption.SetInteractable(interactable);
             recording.GetComponent<NativeInteractionRecordingToggleView>()?.Sync(
                 NativeInteractionRecordingStore.IsEnabled(ResolveRecordingNpcId(npcId)), interactable);
+        }
+
+        static void RemoveLegacyTalkEntry(ViewEventWindow w)
+        {
+            Button farewell = EwReflect.FarewellButton(w);
+            RectTransform parent = farewell != null ? farewell.transform.parent as RectTransform : null;
+            Transform legacy = parent != null ? parent.Find(EntryName) : null;
+            if (legacy != null) UnityEngine.Object.Destroy(legacy.gameObject);
+            RectTransform root = EwReflect.MainRoot(w);
+            Transform rootLegacy = root != null && root != parent ? root.Find(EntryName) : null;
+            if (rootLegacy != null) UnityEngine.Object.Destroy(rootLegacy.gameObject);
         }
 
         /// <summary>令事件窗右侧 NPC 立即重拉显示(好感/戒备等即时效果改完后调用,免得关窗重开才更新)。</summary>
@@ -254,6 +280,8 @@ namespace JianghuYouling
         {
             _shownNpcId = -1;
             _interactiveAt = float.PositiveInfinity;
+            NativeTalkOption.Reset();
+            MiscInteractionTab.Reset();
             ResetCaptiveGate(-1);
         }
 
@@ -291,70 +319,64 @@ namespace JianghuYouling
             }
         }
 
-        // AI 对话直接克隆本体“道别”按钮，完整继承原版底图、边框和交互状态；
-        // 仅替换文字与位置。取不到原版按钮时才使用自建备用样式。
-        static Transform Create(ViewEventWindow w, EwChar rc, RectTransform parent)
+        private static class NativeTalkOption
         {
-            Button farewell = EwReflect.FarewellButton(w);
-            if (farewell != null)
-            {
-                GameObject cloned = UnityEngine.Object.Instantiate(farewell.gameObject, parent, false);
-                cloned.name = EntryName;
-                cloned.SetActive(true);
-                RectTransform clonedRt = cloned.GetComponent<RectTransform>();
-                clonedRt.anchorMin = clonedRt.anchorMax = new Vector2(0.5f, 0f);
-                clonedRt.pivot = new Vector2(0.5f, 0f);
-                clonedRt.anchoredPosition = new Vector2(0f, 8f);
+            private static readonly FieldInfo OptionHelpField = typeof(EventWindowOption).GetField(
+                "optionHelp", BindingFlags.Instance | BindingFlags.NonPublic);
+            private static Transform _entry;
 
-                Button clonedButton = cloned.GetComponent<Button>();
-                if (clonedButton == null)
+            internal static void TryRefresh(ViewEventWindow w, bool show)
+            {
+                CToggleGroup group = EwReflect.InteractionGroup(w);
+                RectTransform container = EwReflect.OptionContainer(w);
+                if (group == null || container == null) { Hide(); return; }
+                if (!show || group.GetActiveIndex() != 0) { Hide(); return; }
+                EventWindowOption[] nativeOptions = container.GetComponentsInTopChildren<EventWindowOption>(true);
+                if (nativeOptions.Length == 0) return;
+                if (_entry == null)
                 {
-                    UnityEngine.Object.Destroy(cloned);
-                    return null;
+                    GameObject row = UnityEngine.Object.Instantiate(nativeOptions[0].gameObject,
+                        container, false);
+                    row.name = EntryName;
+                    _entry = row.transform;
+                    EventWindowOption option = row.GetComponent<EventWindowOption>();
+                    var info = new EventOptionInfo
+                    {
+                        OptionKey = EntryName,
+                        OptionContent = "（细聊）",
+                        OptionState = 0,
+                    };
+                    option.Setup(info, "0", 0, 0, 0, _ => OnAiTalkClick(w,
+                        EwReflect.ResolveNpcId(EwReflect.Right(w)), EwReflect.TaiwuId()));
+                    TooltipInvoker help = OptionHelpField?.GetValue(option) as TooltipInvoker;
+                    if (help != null)
+                    {
+                        help.gameObject.SetActive(true);
+                        help.Type = TipType.SingleDesc;
+                        help.RuntimeParam = FrameWork.EasyPool.Get<FrameWork.ArgumentBox>()
+                            .Set("arg0", "与当前人物细聊");
+                    }
                 }
-                clonedButton.onClick.RemoveAllListeners();
-                TextMeshProUGUI optionName = FindText(cloned.transform, "OptionName");
-                if (optionName == null) optionName = FindText(cloned.transform, "Label");
-                if (optionName != null)
-                {
-                    optionName.text = "AI 对话";
-                    if (optionName.enableAutoSizing)
-                        UiFontSizeStore.BindAutoSize(optionName, optionName.fontSizeMin,
-                            optionName.fontSizeMax);
-                    else UiFontSizeStore.Bind(optionName, optionName.fontSize);
-                }
-                WireClick(clonedButton, w);
-                return cloned.transform;
+                _entry.gameObject.SetActive(true);
+                _entry.SetAsFirstSibling();
             }
 
-            var go = new GameObject(EntryName, typeof(RectTransform), typeof(Image), typeof(Button));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
-            rt.pivot = new Vector2(0.5f, 0f);
-            rt.anchoredPosition = new Vector2(0f, 20f);
-            rt.sizeDelta = new Vector2(156f, 48f);
-            go.GetComponent<Image>().color = new Color(0.34f, 0.43f, 0.42f, 0.98f);
+            internal static void SetInteractable(bool interactable)
+            {
+                if (_entry == null) return;
+                CButton button = _entry.GetComponentInChildren<CButton>(true);
+                if (button != null) button.interactable = interactable;
+            }
 
-            // 克隆 nameLabel 继承游戏中文字体
-            TextMeshProUGUI lbl = rc != null && rc.nameLabel != null
-                ? UnityEngine.Object.Instantiate(rc.nameLabel, go.transform, false)
-                : new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI)).GetComponent<TextMeshProUGUI>();
-            lbl.gameObject.name = "Label";
-            if (lbl.transform.parent != go.transform) lbl.transform.SetParent(go.transform, false);
-            var lrt = lbl.rectTransform;
-            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
-            lrt.offsetMin = new Vector2(6f, 1f); lrt.offsetMax = new Vector2(-6f, -1f);
-            lbl.enableAutoSizing = true; UiFontSizeStore.BindAutoSize(lbl, 16f, 26f);   // 字也跟着大一点
-            lbl.alignment = TextAlignmentOptions.Center;
-            lbl.color = new Color(0.92f, 0.92f, 0.82f, 1f);
-            lbl.raycastTarget = false;
-            lbl.text = "AI 对话";
+            internal static void Hide()
+            {
+                if (_entry != null) _entry.gameObject.SetActive(false);
+            }
 
-            var btn = go.GetComponent<Button>();
-            btn.targetGraphic = go.GetComponent<Image>();
-            WireClick(btn, w);
-            return go.transform;
+            internal static void Reset()
+            {
+                _entry = null;
+            }
         }
 
         static TextMeshProUGUI FindText(Transform root, string objectName)
@@ -558,11 +580,20 @@ namespace JianghuYouling
         static void EnsureInjectedOrder(RectTransform root, Transform talk, Transform recording)
         {
             if (root == null || talk == null || recording == null) return;
-            int count = root.childCount;
-            if (count >= 2 && talk.GetSiblingIndex() == count - 2
-                && recording.GetSiblingIndex() == count - 1) return;
-            talk.SetAsLastSibling();
-            recording.SetAsLastSibling();
+            if (talk.parent == recording.parent)
+            {
+                int count = talk.parent.childCount;
+                if (count >= 2 && talk.GetSiblingIndex() == count - 2
+                    && recording.GetSiblingIndex() == count - 1) return;
+            }
+            EnsureLastSibling(talk);
+            EnsureLastSibling(recording);
+        }
+
+        static void EnsureLastSibling(Transform value)
+        {
+            if (value.GetSiblingIndex() != value.parent.childCount - 1)
+                value.SetAsLastSibling();
         }
 
         static void WireClick(Button btn, ViewEventWindow w)
@@ -588,7 +619,7 @@ namespace JianghuYouling
             if (!LlmService.IsConfigured)
             {
                 Debug.Log("[江湖有灵] 尚未配置 LLM,打开配置窗口");
-                ConfigWindow.Open(font);
+                AISettingsHost.OpenModelSettings();
                 return;
             }
             Debug.Log("[江湖有灵] AI 对话 npcId=" + npcId + " taiwuId=" + taiwuId + " name=" + npcName);

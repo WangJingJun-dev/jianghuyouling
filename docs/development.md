@@ -9,8 +9,14 @@ pwsh -File tools/bootstrap-development.ps1 -GameRoot "你的太吾绘卷安装�
 ```
 
 脚本生成被 Git 忽略的 `Directory.Build.local.props`，并还原 NuGet 依赖。
-也可设置 `TAIWU_GAME_DIR`；工坊同步目录使用 `TAIWU_WORKSHOP_DIR`。
+也可设置 `TAIWU_GAME_DIR`。
 不提交本机配置、游戏 DLL、运行日志、存档或密钥。
+
+## 设置界面与诊断
+
+模型、体验档位、语音、生图、对话、世界书、过月、助手配置位于游戏「系统设置 → AI设置」，通过原生设置项保存并热重载。旧 ConfigWindow 暂时只保留 NPC 人设对比入口，不再向这些配置写入数据。世界书在主界面置灰，进入存档后才允许编辑。
+
+`[JHYL_AI_SETTINGS]` 诊断保持开启，覆盖分类同步、控件初始化、保存和热重载结果；日志不得包含密钥、完整人设、世界书或其他敏感正文。与独立「太吾界面优化」同时修改系统设置分类时，遵守工作区根目录 `AGENTS.md` 的幂等与恢复契约。
 
 ## 构建与离线测试
 
@@ -25,8 +31,8 @@ pwsh -File tools/test-workshop-package-validator.ps1
 pwsh -File tools/test-real-game-e2e-evidence-gate.ps1
 ```
 
-Debug 不写入游戏目录。Release 默认自动部署到本机 Mod，配置的工坊目录存在时也会同步；
-只验证编译时使用 Debug，或通过 MSBuild 的 `ModDeploy` 和 `PublishDeploy` 属性显式重定向。
+Debug 不写入游戏目录。Release 默认只自动部署到本机游戏 `Mod` 目录。Steam 工坊下载目录只用于拉取线上发布版，不用于测试部署或构建输出。
+只验证编译时使用 Debug，或通过 MSBuild 的 `ModDeploy` 属性显式重定向测试部署目录。
 
 BackendContractTests 还需要下面说明的本地游戏接口快照；生成后设置
 `JHYL_DECOMPILED_ROOT`，或使用默认的 `.decompiled` 目录，再运行此项测试。

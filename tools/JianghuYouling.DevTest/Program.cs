@@ -42,6 +42,12 @@ namespace JianghuYouling.DevTest
                 ReasoningReplayTests.RunOffline();
                 return 0;
             }
+            if (args != null && Array.Exists(args, a => string.Equals(a, "--ai-settings-only", StringComparison.OrdinalIgnoreCase)))
+            {
+                AISettingsAssistantTests.Run();
+                AISettingsWorldBookTests.Run();
+                return 0;
+            }
             if (args != null && Array.Exists(args, a => string.Equals(a, "--commission-only", StringComparison.OrdinalIgnoreCase)))
             {
                 CommissionPolicyTests.Run();
@@ -208,6 +214,7 @@ namespace JianghuYouling.DevTest
                     TestProviderCoreSafety();
                     TestImageGenerationProviderSupport();
                     TestImageGenerationDisabledConfiguration();
+                    MediaFeatureSwitchTests.Run();
                     TestToolArgumentValidation();
                     TestAssistantToolAuthorizationPolicy();
                     TestSseBodyReader();
@@ -362,6 +369,7 @@ namespace JianghuYouling.DevTest
             TestTtsProviderSupport();
             TestImageGenerationProviderSupport();
             TestImageGenerationDisabledConfiguration();
+            MediaFeatureSwitchTests.Run();
             await TestWindowsDictationSequence();
             TestProtectedConfigStorage();
             TestLlmProfileStore();
@@ -6206,8 +6214,8 @@ namespace JianghuYouling.DevTest
 
             request.Endpoint = "http://127.0.0.1:8188/v1/images/edits";
             request.ApiKey = "";
-            AssertEq("本机 OpenAI-compatible 图生图允许空密钥",
-                ImageGenerationClient.TryValidate(request, out _, out _).ToString(), "True");
+            AssertEq("启用本机 OpenAI-compatible 图生图也要求密钥",
+                ImageGenerationClient.TryValidate(request, out _, out _).ToString(), "False");
             request.Endpoint = "https://images.example.invalid/v1/images/edits";
             AssertEq("远程 OpenAI-compatible 图生图仍强制独立密钥",
                 ImageGenerationClient.TryValidate(request, out _, out _).ToString(), "False");
@@ -6223,7 +6231,10 @@ namespace JianghuYouling.DevTest
             request.Model = "sdxl-local.safetensors";
             request.Prompt = "两位人物在客栈交谈";
             request.WorkflowJson = workflowJson;
-            AssertEq("本机 ComfyUI 图生图允许空密钥并通过安全校验",
+            AssertEq("启用本机 ComfyUI 图生图也要求密钥",
+                ImageGenerationClient.TryValidate(request, out _, out _).ToString(), "False");
+            request.ApiKey = "fixture";
+            AssertEq("本机 ComfyUI 配置密钥后通过安全校验",
                 ImageGenerationClient.TryValidate(request, out _, out _).ToString(), "True");
             AssertEq("ComfyUI 使用适合 8GB 显存的固定 1024×576",
                 ImageGenerationClient.FixedSizeForProvider(ImageGenerationClient.ProviderComfyUI),
@@ -6304,11 +6315,11 @@ namespace JianghuYouling.DevTest
                 AssertEq("未启用配置真实保存空 Key 而非校验占位值",
                     string.IsNullOrEmpty(raw.ApiKey).ToString(), "True");
                 AssertEq("未启用配置保留其它可编辑字段", raw.Style, "水墨武侠");
-                AssertEq("实际生图仍拒绝缺少远程独立 Key",
+                AssertEq("实际生图拒绝未启用配置",
                     global::JianghuYouling.ImageGenerationConfig.TryResolve(
-                        out _, out string missingKeyError).ToString(), "False");
-                AssertEq("实际生图给出明确缺 Key 原因",
-                    (missingKeyError ?? string.Empty).Contains("API Key").ToString(), "True");
+                        out _, out string disabledError).ToString(), "False");
+                AssertEq("实际生图给出明确的未启用原因",
+                    (disabledError ?? string.Empty).Contains("未启用").ToString(), "True");
 
                 string settings = JYPaths.Settings;
                 string joined = string.Join("\n", System.IO.Directory
@@ -11324,21 +11335,8 @@ namespace JianghuYouling.DevTest
                  && actionWindowSource.Contains("VisibleChoiceIndices.All")
                  && actionWindowSource.Contains("allSelected ? \"取消全选\" : \"全选\""))
                     .ToString(), "True");
-            AssertEq("往事成书、详情与人设依次位于加入主动右侧且 AI 更新重读完整角色快照",
-                (chatWindowSource.Contains("\"Persona\"")
-                  && chatWindowSource.Contains("NewButton(\"NpcNovel\", panel.transform, \"往事成书\"")
-                  && chatWindowSource.Contains("NewButton(\"Persona\", panel.transform")
-                  && chatWindowSource.Contains("NewButton(\"CharacterDetail\", panel.transform")
-                  && chatWindowSource.Contains("CharacterMenuLink.OpenCharacterInfo(_npcId)")
-                  && chatWindowSource.Contains("novelRt.anchoredPosition = new Vector2(-542, -8)")
-                  && chatWindowSource.Contains("detailRt.anchoredPosition = new Vector2(-482, -8)")
-                  && chatWindowSource.Contains("personaRt.anchoredPosition = new Vector2(-422, -8)")
-                  && chatWindowSource.Contains("monthlyCandidateRt.anchoredPosition = new Vector2(-630, -8)")
-                  && !chatWindowSource.Contains("NewButton(\"Persona\", _taiwuActionBarGo.transform")
-                  && chatWindowSource.Contains("NpcNovelWindow.Open(_npcId, _taiwuId")
-                  && chatWindowSource.Contains("PersonaWindow.Open(_npcId, _taiwuId")
-                  && chatWindowSource.Contains("bool personaVisible = visible && !_assistantMode && !_groupMode")
-                  && personaWindowSource.Contains("\"UpdateWithAi\"")
+            AssertEq("人设更新重读完整角色快照",
+                (personaWindowSource.Contains("\"UpdateWithAi\"")
                   && personaWindowSource.Contains("const float PanelWidth = 980f;")
                   && personaWindowSource.Contains("const float PanelHeight = 720f;")
                   && personaWindowSource.Contains("NpcSnapshotReader.Fetch(npcId")

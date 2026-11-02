@@ -23,7 +23,8 @@ namespace JianghuYouling
             UiFontSizeStore.Initialize();
             _harmony = new Harmony(GetGuid());
             _harmony.PatchAll(typeof(Plugin).Assembly);
-            TalkEntryHost.Initialize();   // 轮询宿主:注入"AI 对话"按钮
+            AISettingsHost.Initialize();
+            TalkEntryHost.Initialize();   // 轮询宿主:注入"细聊"按钮
             LegacyDataNoticeHost.Initialize();   // 旧版数据迁移的玩家可见提示(认领冲突/标记损坏/持续失败)
             ChatHistoryEntryHost.Initialize();   // 轮询宿主:人物详情页注入“往事成书 / 千里传音”入口
             AssistantWidget.Initialize();        // 悬浮 AI 助手挂件(可拖/置顶;点击开助手对话)
