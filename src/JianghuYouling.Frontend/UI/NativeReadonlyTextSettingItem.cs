@@ -9,6 +9,7 @@ namespace JianghuYouling
     {
         public override SettingUIType UIType => (SettingUIType)104;
         public float Height = 520f;
+        public bool CenterVertically { get; set; }
 
         public NativeReadonlyTextSettingAttribute(ESettingSubCategory subCategory, int order, LanguageKey languageKey)
             : base(subCategory, order, languageKey)
@@ -62,7 +63,8 @@ namespace JianghuYouling
             if (_font != null) _text.font = _font;
             if (_sharedMaterial != null) _text.fontSharedMaterial = _sharedMaterial;
             _text.fontSize = 18f;
-            _text.alignment = TextAlignmentOptions.TopLeft;
+            _text.alignment = _attr.CenterVertically
+                ? TextAlignmentOptions.MidlineLeft : TextAlignmentOptions.TopLeft;
             _text.color = new Color(0.86f, 0.87f, 0.80f, 1f);
             _text.raycastTarget = false;
             RectTransform textRt = _text.rectTransform;

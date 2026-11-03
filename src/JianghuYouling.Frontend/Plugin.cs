@@ -29,7 +29,7 @@ namespace JianghuYouling
             ChatHistoryEntryHost.Initialize();   // 轮询宿主:人物详情页注入“往事成书 / 千里传音”入口
             AssistantWidget.Initialize();        // 悬浮 AI 助手挂件(可拖/置顶;点击开助手对话)
             NpcProactiveChatScheduler.Initialize(); // 已聊 NPC 低频主动来信（完整单聊上下文）
-            ConfigHost.Initialize();      // 配置面板宿主(协程/字体载体;不占用游戏快捷键,设置由聊天窗"设置"键打开)
+            ConfigHost.Initialize();      // 协程与字体宿主;不占用游戏快捷键,综合配置使用系统设置
             ImeFollow.Initialize();       // 仅清理旧版输入法宿主/Checker；当前 TMP 原生负责候选窗与光标
             MonthlySettlement.Initialize();  // 过月车道:行为意图 → 引擎目标
             LoadSettingsFromStores();   // 配置一律读 mod 内设置窗存盘(难度/篇幅/流式);mod 管理页不再有任何设置项
@@ -55,7 +55,7 @@ namespace JianghuYouling
             LoadSettingsFromStores();
         }
 
-        // 从 mod 内设置窗的本地存盘载入难度/篇幅/流式(游戏内 ConfigWindow 即时存盘,这里启动时载入)
+        // 从本地 Store 载入难度/篇幅/流式；系统设置中的 AI 设置负责即时保存。
         public static void LoadSettingsFromStores()
         {
             TalkOrchestrator.Difficulty = DifficultyStore.Load();

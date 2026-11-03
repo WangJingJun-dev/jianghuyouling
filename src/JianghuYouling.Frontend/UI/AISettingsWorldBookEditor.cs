@@ -119,6 +119,8 @@ namespace JianghuYouling
         internal static string Localize(ushort id)
             => DynamicText.TryGetValue(id, out string value) ? value : null;
 
+        internal static string CurrentStatus => _status;
+
         private static void EnsureContext()
         {
             DynamicText.Clear();

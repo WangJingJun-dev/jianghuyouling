@@ -30,7 +30,7 @@ namespace JianghuYouling
         private const string DefaultContextWindow = "1000000";
         private static CancellationTokenSource _testCancellation;
         private static long _testVersion;
-        internal static string TestStatus { get; private set; } = "尚未测试";
+        internal static string TestStatus { get; private set; } = string.Empty;
 
         internal static List<ISettingItemInfo> CreateInfos()
         {
@@ -56,8 +56,6 @@ namespace JianghuYouling
                 value => SaveField("contextWindow", value)));
             infos.Add(new SettingItemInfo<sbyte>(new NativeActionSettingAttribute(sub, 16, TestTitle)
                 { ActionText = TestActionText }, () => 0, _ => StartTest()));
-            infos.Add(new SettingItemInfo<string>(new NativeReadonlyTextSettingAttribute(sub, 17, TestStatusTitle)
-                { Height = 64f }, () => TestStatus, _ => { }));
             return infos;
         }
 

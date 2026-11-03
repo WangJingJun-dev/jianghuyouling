@@ -25,6 +25,7 @@ namespace JianghuYouling
         static readonly FieldInfo InteractionGroupField = typeof(ViewEventWindow).GetField("interactionTypeTogGroup", NP);
         static readonly FieldInfo CommonOptionField = typeof(ViewEventWindow).GetField("commonOption", NP);
         static readonly FieldInfo CurCharIdField = typeof(EwChar).GetField("_curCharacterId", NP);
+        static readonly FieldInfo OptionHelpField = typeof(EventWindowOption).GetField("optionHelp", NP);
 
         public static EwChar Right(ViewEventWindow w) => w == null ? null : RightCharField?.GetValue(w) as EwChar;
         public static RectTransform MainRoot(ViewEventWindow w) => w == null ? null : MainRootField?.GetValue(w) as RectTransform;
@@ -38,8 +39,18 @@ namespace JianghuYouling
             => w == null ? null : OptionContainerField?.GetValue(w) as RectTransform;
         public static CToggleGroup InteractionGroup(ViewEventWindow w)
             => w == null ? null : InteractionGroupField?.GetValue(w) as CToggleGroup;
-        public static GameObject CommonOption(ViewEventWindow w)
-            => w == null ? null : CommonOptionField?.GetValue(w) as GameObject;
+        public static Refers CommonOption(ViewEventWindow w)
+            => w == null ? null : CommonOptionField?.GetValue(w) as Refers;
+
+        public static void SetOptionHelp(EventWindowOption option, string description)
+        {
+            TooltipInvoker help = option != null ? OptionHelpField?.GetValue(option) as TooltipInvoker : null;
+            if (help == null) return;
+            help.gameObject.SetActive(true);
+            help.Type = TipType.SingleDesc;
+            help.RuntimeParam = FrameWork.EasyPool.Get<FrameWork.ArgumentBox>()
+                .Set("arg0", description ?? string.Empty);
+        }
 
         // —— 好感条原生动画钩子:右侧 NPC 的好感监视器 + 私有 FillFavorProgress(改完好感后手动触发升/降动画) ——
         static readonly FieldInfo BasicMonitorF = typeof(EwChar).GetField("_basicInfoMonitor", NP);
@@ -230,7 +241,9 @@ namespace JianghuYouling
             bool nativeSelectionActive = operateArea != null && operateArea.gameObject.activeSelf;
             bool show = rc != null && rc.gameObject.activeSelf && root != null
                 && (ordinaryChat || EwReflect.CanChatNow(npcId, confirmedCaptive));
-            bool showTalk = show && !nativeSelectionActive;
+            Refers commonOption = EwReflect.CommonOption(w);
+            bool nativeHomeOptions = commonOption != null && commonOption.gameObject.activeSelf;
+            bool showTalk = show && !nativeSelectionActive && nativeHomeOptions;
             MiscInteractionTab.TryRefresh(w, show);
             RemoveLegacyTalkEntry(w);
             NativeTalkOption.TryRefresh(w, showTalk);
@@ -321,8 +334,6 @@ namespace JianghuYouling
 
         private static class NativeTalkOption
         {
-            private static readonly FieldInfo OptionHelpField = typeof(EventWindowOption).GetField(
-                "optionHelp", BindingFlags.Instance | BindingFlags.NonPublic);
             private static Transform _entry;
 
             internal static void TryRefresh(ViewEventWindow w, bool show)
@@ -343,19 +354,12 @@ namespace JianghuYouling
                     var info = new EventOptionInfo
                     {
                         OptionKey = EntryName,
-                        OptionContent = "（细聊）",
+                        OptionContent = "（细聊……）",
                         OptionState = 0,
                     };
                     option.Setup(info, "0", 0, 0, 0, _ => OnAiTalkClick(w,
                         EwReflect.ResolveNpcId(EwReflect.Right(w)), EwReflect.TaiwuId()));
-                    TooltipInvoker help = OptionHelpField?.GetValue(option) as TooltipInvoker;
-                    if (help != null)
-                    {
-                        help.gameObject.SetActive(true);
-                        help.Type = TipType.SingleDesc;
-                        help.RuntimeParam = FrameWork.EasyPool.Get<FrameWork.ArgumentBox>()
-                            .Set("arg0", "与当前人物细聊");
-                    }
+                    EwReflect.SetOptionHelp(option, "与当前人物细聊");
                 }
                 _entry.gameObject.SetActive(true);
                 _entry.SetAsFirstSibling();

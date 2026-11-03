@@ -33,7 +33,6 @@ function Reject-Match([string]$text, [string]$pattern, [string]$label) {
 $talk = Read-Source 'src/JianghuYouling.Frontend/Talk/TalkOrchestrator.cs'
 $group = Read-Source 'src/JianghuYouling.Frontend/Talk/GroupChatOrchestrator.cs'
 $chat = Read-Source 'src/JianghuYouling.Frontend/UI/ChatWindow.cs'
-$config = Read-Source 'src/JianghuYouling.Frontend/UI/ConfigWindow.cs'
 $voice = Read-Source 'src/JianghuYouling.Frontend/UI/VoicePlayer.cs'
 $dictation = Read-Source 'src/JianghuYouling.Frontend/UI/WindowsDictation.cs'
 $worldLifecycle = Read-Source 'src/JianghuYouling.Frontend/Game/WorldLifecycle.cs'
@@ -103,11 +102,6 @@ Require-Match $chat 'void ClearLog\(\)\s*\{\s*[\s\S]*?InvalidateAllVoice\(\);\s*
 Require-Match $voice 'TryPlanSpeech\(provider, text,[\s\S]*?for \(int index = 0; index < chunks\.Count; index\+\+\)' 'voice plan is bounded before chunk dispatch'
 Require-Match $voice 'TryGetNextRequestTimeout\(out int requestTimeoutMs\)[\s\S]*?CreateLinkedTokenSource' 'voice chunks share an overall synthesis deadline'
 Require-Match $voice 'BuildTtsCacheScope\(provider, baseUrl, apiKey, configRevision\)' 'voice cache uses endpoint account and config identity'
-
-# Batch rollback restores disk-backed runtime projections as well as files. Face path
-# previews are explicitly invalidated because the widget caches the path it loaded.
-Require-Match $config 'ReloadConversationTextRuntimeFromDisk\(\)[\s\S]*?TaiwuVoice\s*=\s*TaiwuVoiceStore\.Load\(\)' 'conversation runtime reload helper'
-Require-Match $config 'System\.Action<string> abort[\s\S]*?transaction\.Rollback\(\)[\s\S]*?ReloadConversationTextRuntimeFromDisk\(\);[\s\S]*?Prefill\(\)[\s\S]*?AssistantWidget\.NotifyFacePathChanged\(\)' 'batch abort restores runtime and face projection'
 
 # The production async state machine stays on Unity's synchronization context so each
 # key phase can re-check the exact TMP target. DevTest executes this same state machine.

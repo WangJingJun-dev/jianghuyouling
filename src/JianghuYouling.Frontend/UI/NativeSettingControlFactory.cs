@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
+using FrameWork.UISystem.UIElements;
 using Game.Views.SystemSetting;
 using HarmonyLib;
 using TMPro;
@@ -15,7 +16,7 @@ namespace JianghuYouling
             if (prefabMap == null || window == null) return;
             if (prefabMap.ContainsKey((SettingUIType)100) && prefabMap.ContainsKey((SettingUIType)101)
                 && prefabMap.ContainsKey((SettingUIType)102) && prefabMap.ContainsKey((SettingUIType)103)
-                && prefabMap.ContainsKey((SettingUIType)104)) return;
+                && prefabMap.ContainsKey((SettingUIType)104) && prefabMap.ContainsKey((SettingUIType)105)) return;
             FieldInfo field = typeof(ViewSystemSetting).GetField("switchButtonSettingPrefab",
                 BindingFlags.Instance | BindingFlags.NonPublic);
             SettingItemBase template = field?.GetValue(window) as SettingItemBase;
@@ -29,6 +30,7 @@ namespace JianghuYouling
             prefabMap[(SettingUIType)102] = CreatePrefab<NativeImageSettingItem>(template, "JHYL_ImageSettingPrefab", window);
             prefabMap[(SettingUIType)103] = CreatePrefab<NativeExperiencePresetSettingItem>(template, "JHYL_PresetCardSettingPrefab", window);
             prefabMap[(SettingUIType)104] = CreatePrefab<NativeReadonlyTextSettingItem>(template, "JHYL_ReadonlyTextSettingPrefab", window);
+            prefabMap[(SettingUIType)105] = CreatePrefab<NativeImageSizeSettingItem>(template, "JHYL_ImageSizeSettingPrefab", window);
             Debug.Log("[JHYL_AI_SETTINGS] native text/action/image/readonly prefabs registered");
         }
 
@@ -68,7 +70,29 @@ namespace JianghuYouling
             if (item is NativeImageSettingItem imageItem) imageItem.Configure(label, font, sharedMaterial);
             if (item is NativeExperiencePresetSettingItem presetItem) presetItem.Configure(label);
             if (item is NativeReadonlyTextSettingItem readonlyItem) readonlyItem.Configure(label, font, sharedMaterial);
+            if (item is NativeImageSizeSettingItem sizeItem) sizeItem.Configure(label, font, sharedMaterial);
             return item;
+        }
+
+        internal static void SetRowHoverEnabled(SettingItemBase item, bool enabled)
+        {
+            if (item == null) return;
+            Transform row = item.transform.parent;
+            if (row == null) return;
+            PointerTrigger pointerTrigger = row.GetComponent<PointerTrigger>();
+            if (pointerTrigger != null)
+            {
+                pointerTrigger.enabled = enabled;
+                if (!enabled)
+                {
+                    pointerTrigger.EnterEvent.RemoveAllListeners();
+                    pointerTrigger.ExitEvent.RemoveAllListeners();
+                }
+            }
+            CImage frame = row.GetComponent<CImage>();
+            if (frame == null) return;
+            frame.enabled = enabled;
+            if (!enabled) frame.SetAlpha(0f);
         }
 
         internal static void RefreshNavigation(SettingGroupItem group)
@@ -81,12 +105,13 @@ namespace JianghuYouling
                 if (item is NativeTextSettingItem text) rows.Add(text.Focusables());
                 else if (item is NativeActionSettingItem action) rows.Add(action.Focusables());
                 else if (item is NativeExperiencePresetSettingItem preset) rows.Add(preset.Focusables());
+                else if (item is NativeImageSizeSettingItem size) rows.Add(size.Focusables());
                 else rows.Add(item.GetComponentsInChildren<Selectable>(true));
             }
             for (int row = 0; row < items.Length; row++)
             {
                 bool custom = items[row] is NativeTextSettingItem || items[row] is NativeActionSettingItem
-                    || items[row] is NativeExperiencePresetSettingItem;
+                    || items[row] is NativeExperiencePresetSettingItem || items[row] is NativeImageSizeSettingItem;
                 if (!custom) continue;
                 for (int column = 0; column < rows[row].Length; column++)
                 {
@@ -103,6 +128,7 @@ namespace JianghuYouling
                     current.navigation = navigation;
                 }
             }
+            AISettingsStatusView.Refresh(group);
         }
 
         private static Selectable FindSelectable(SettingItemBase[] items,

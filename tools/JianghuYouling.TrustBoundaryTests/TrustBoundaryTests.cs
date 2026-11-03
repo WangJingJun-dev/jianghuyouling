@@ -105,14 +105,21 @@ namespace JianghuYouling.TrustBoundaryTests
                 Model = "doubao-seedream-test",
                 Prompt = "两位人物在江湖中交谈",
                 ReferencePng = png,
-                Size = "2K"
+                Size = "1600x900"
             };
-            AssertTrue("official Doubao image request shape passes local validation",
+            AssertTrue("official Doubao image request with custom dimensions passes local validation",
                 ImageGenerationClient.TryValidate(request, out _, out _));
-            AssertTrue("Doubao image output is fixed to landscape 16:9 dimensions",
+            AssertTrue("custom image dimensions are parsed into width and height",
+                ImageGenerationClient.TryParseSize(request.Size, out int customWidth, out int customHeight)
+                && customWidth == 1600 && customHeight == 900);
+            request.Size = "not-a-size";
+            AssertFalse("invalid image dimensions are rejected before dispatch",
+                ImageGenerationClient.TryValidate(request, out _, out _));
+            request.Size = "1600x900";
+            AssertTrue("Doubao image output keeps the landscape 16:9 default dimensions",
                 ImageGenerationClient.FixedSizeForProvider(ImageGenerationClient.ProviderDoubao)
                     == "2048x1152");
-            AssertTrue("OpenRouter image output uses the same fixed 16:9 aspect",
+            AssertTrue("OpenRouter image output keeps the same default 16:9 aspect",
                 ImageGenerationClient.FixedSizeForProvider(ImageGenerationClient.ProviderOpenRouter)
                     == "16:9");
             request.Endpoint = "http://example.com/api/v3/images/generations";

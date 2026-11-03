@@ -61,6 +61,13 @@ namespace JianghuYouling.Core.Behavior
             return false;
         }
 
+        public static int IndexOf(string id)
+        {
+            for (int i = 0; i < Definitions.Length; i++)
+                if (string.Equals(Definitions[i].Id, id, StringComparison.Ordinal)) return i;
+            return -1;
+        }
+
         public static ExperiencePresetDefinition Match(bool monthlyEvent, bool companionMonthly,
             int companionCount, int groupRounds, int assistantFrequency)
         {

@@ -4,8 +4,8 @@ using TMPro;
 namespace JianghuYouling
 {
     /// <summary>
-    /// 常驻宿主:作为 ConfigWindow 的协程载体 + 字体提供者。DontDestroyOnLoad。
-    /// (配置面板由聊天窗内的"设置"按钮打开;本 mod 不占用任何游戏快捷键。)
+    /// 常驻宿主:作为 MOD 窗口的协程载体 + 字体提供者。DontDestroyOnLoad。
+    /// (综合配置使用系统设置中的 AI 设置;本 mod 不占用任何游戏快捷键。)
     /// 打开时尽量从场景里现成的 TMP 文本借一个游戏中文字体,避免缺字形。
     /// </summary>
     public sealed class ConfigHost : MonoBehaviour

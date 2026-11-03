@@ -32,7 +32,6 @@ namespace JianghuYouling
             // Every window below is DontDestroyOnLoad and carries either a Taiwu/NPC identity
             // or late async callbacks. Invalidate them at the same generation boundary as the
             // orchestrators so an old save cannot repaint or write through a new save's UI.
-            try { ConfigWindow.ResetForWorldExit(); } catch { }
             try { HistoryWindow.ResetForWorldExit(); } catch { }
             try { ChatHistoryWindow.ResetForWorldExit(); } catch { }
             try { NpcNovelWindow.ResetForWorldExit(); } catch { }

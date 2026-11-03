@@ -13,7 +13,6 @@ namespace JianghuYouling
         internal const LanguageKey SaveTitle = (LanguageKey)6162;
         internal const LanguageKey ActivateTitle = (LanguageKey)6163;
         internal const LanguageKey DeleteTitle = (LanguageKey)6164;
-        internal const LanguageKey StatusTitle = (LanguageKey)6165;
         internal const LanguageKey SaveActionText = (LanguageKey)6166;
         internal const LanguageKey ActivateActionText = (LanguageKey)6167;
         internal const LanguageKey DeleteActionText = (LanguageKey)6168;
@@ -41,9 +40,7 @@ namespace JianghuYouling
                 new SettingItemInfo<sbyte>(new NativeActionSettingAttribute(sub, 4, ActivateTitle)
                     { ActionText = ActivateActionText }, () => 0, _ => ActivateProfile()),
                 new SettingItemInfo<sbyte>(new NativeActionSettingAttribute(sub, 5, DeleteTitle)
-                    { ActionText = DeleteActionText }, () => 0, _ => DeleteProfile()),
-                new SettingItemInfo<string>(new NativeReadonlyTextSettingAttribute(sub, 6, StatusTitle)
-                    { Height = 64f }, () => Status, _ => { })
+                    { ActionText = DeleteActionText }, () => 0, _ => DeleteProfile())
             };
             return infos;
         }

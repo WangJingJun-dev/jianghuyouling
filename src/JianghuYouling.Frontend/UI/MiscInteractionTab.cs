@@ -118,19 +118,21 @@ namespace JianghuYouling
         {
             RectTransform nativeArea = EwReflect.OptionContainer(w);
             RectTransform optionContainer = EwReflect.OptionContainer(w);
+            RectTransform nativeFrame = EwReflect.OptionScroll(w)?.transform as RectTransform;
             EventWindowOption[] nativeOptions = optionContainer != null
                 ? optionContainer.GetComponentsInTopChildren<EventWindowOption>(true) : null;
-            if (nativeArea == null || nativeOptions == null || nativeOptions.Length == 0) return null;
+            if (nativeArea == null || nativeFrame == null || nativeFrame.parent == null
+                || nativeOptions == null || nativeOptions.Length == 0) return null;
             var content = new GameObject(ContentName, typeof(RectTransform), typeof(Image));
-            content.transform.SetParent(nativeArea.parent.parent, false);
+            content.transform.SetParent(nativeFrame.parent, false);
             RectTransform rt = content.GetComponent<RectTransform>();
-            rt.anchorMin = nativeArea.anchorMin;
-            rt.anchorMax = nativeArea.anchorMax;
-            rt.pivot = nativeArea.pivot;
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
-            rt.localScale = nativeArea.localScale;
-            rt.localRotation = nativeArea.localRotation;
+            rt.anchorMin = nativeFrame.anchorMin;
+            rt.anchorMax = nativeFrame.anchorMax;
+            rt.pivot = nativeFrame.pivot;
+            rt.offsetMin = nativeFrame.offsetMin;
+            rt.offsetMax = nativeFrame.offsetMax;
+            rt.localScale = nativeFrame.localScale;
+            rt.localRotation = nativeFrame.localRotation;
             content.GetComponent<Image>().color = Color.clear;
             VerticalLayoutGroup nativeLayout = optionContainer.GetComponent<VerticalLayoutGroup>();
             if (nativeLayout != null)
@@ -148,6 +150,15 @@ namespace JianghuYouling
                 layout.childScaleHeight = nativeLayout.childScaleHeight;
             }
             string[] labels = { "加入主动", "往事成书", "人设", "加人", "导出", "清空" };
+            string[] helpTexts =
+            {
+                "将当前人物加入或移出主动人物名单",
+                "以当前人物的聊天与记忆撰写往事",
+                "编辑当前人物的自定义人设",
+                "选择人物加入当前群聊",
+                "导出当前人物的聊天记录",
+                "清空当前人物的聊天记录，需要再次确认",
+            };
             MiscInteractionAction[] actions =
             {
                 MiscInteractionAction.MonthlyCandidate,
@@ -167,10 +178,11 @@ namespace JianghuYouling
                 var info = new EventOptionInfo
                 {
                     OptionKey = row.name,
-                    OptionContent = labels[i],
+                    OptionContent = "（" + labels[i] + "……）",
                     OptionState = 0,
                 };
-                option.Setup(info, string.Empty, 0, 0, 0, _ => Invoke(w, action));
+                option.Setup(info, (i + 1).ToString(), 0, 0, 0, _ => Invoke(w, action));
+                EwReflect.SetOptionHelp(option, helpTexts[i]);
             }
             content.SetActive(false);
             LogLayout(content, "created");

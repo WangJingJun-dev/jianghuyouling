@@ -1148,8 +1148,8 @@ namespace JianghuYouling
                 "· 主动名单:当前同道默认加入但可移除,聊过的其他人物也可手动加入;名单同时用于主动来信与过月主动行事,两项可分别关闭;江湖大事逐月连载,每回至少办成3件且覆盖2类不同实事\n" +
                 "· 身后旧话:聊过的人去世后不会删除聊天、人设、记忆或画像;首次确认死亡时会恢复曾隐藏的聊天入口并标为灵魂状态,之后仍可再次隐藏;灵魂只能被动交谈,不能主动发消息、查询、行动、调用任何工具或参与过月\n" +
                 "· 特殊人物:固定模板人物单纯打开对话不会复制;首次发送消息或开启互动记录时,才会为当前人物独立生成合法普通副本(位置失效时落在太吾村),并保留原角色形象\n" +
-                "· 往事成书:人物页或单聊顶部点「往事成书」,把你与当前人物的聊天、此人参与的群聊和此人的记忆写成小说;文风可改,成稿可导出\n" +
-                "· 灵儿与关于:灵儿页可导出诊断日志并查看 Mod 介绍;开源与自愿支持说明、二维码位于「系统设置 → AI设置 → 关于」\n" +
+                "· 往事成书:人物页或人物交互「杂务」点「往事成书」,把你与当前人物的聊天、此人参与的群聊和此人的记忆写成小说;文风可改,成稿可导出\n" +
+                "· 灵儿与关于:灵儿页可导出诊断日志;开源与自愿支持说明、二维码位于「系统设置 → AI设置 → 关于」\n" +
                 "· 设置与人设:接口、模型、语音、生图、世界书、过月与助手等配置位于游戏「系统设置 → AI设置」并即时生效;聊天窗右上「人设」直接编辑当前 NPC 的自定义人设";
         }
 
@@ -2209,12 +2209,6 @@ namespace JianghuYouling
             EndCombatTransition(false);
         }
 
-        void IntroduceMod()
-        {
-            if (!_assistantMode || _busy || _combatTransitionBusy) return;
-            ModIntroductionWindow.Open(_font);
-        }
-
         void ExportAssistantDiagnosticLogs()
         {
             if (!_assistantMode || _busy || _combatTransitionBusy || _assistantDiagnosticExportBusy) return;
@@ -2469,7 +2463,13 @@ namespace JianghuYouling
             try { AddRoundBar(r); }
             catch (System.Exception e) { Debug.LogWarning("[江湖有灵] 聊天轮控制条创建失败:" + e.GetType().Name); }
             if (r.bar == null) Debug.LogWarning("[江湖有灵] 聊天轮控制条缺失: mode=" + r.mode + " input=" + (string.IsNullOrEmpty(r.playerInput) ? 0 : r.playerInput.Length) + " reply=" + (string.IsNullOrEmpty(r.replyText) ? 0 : r.replyText.Length));
-            else Debug.Log("[JHYL_CHAT_ROUND_BAR] mode=" + r.mode + " retry=" + (!r.proactive && !string.IsNullOrEmpty(r.playerInput)) + " voice=" + (!string.IsNullOrWhiteSpace(r.replyText) && !LooksLikeError(r.replyText)));
+            else Debug.Log("[JHYL_CHAT_ROUND_BAR] mode=" + r.mode
+                + " voiceCreated=" + (r.voiceBtn != null)
+                + " voiceActive=" + (r.voiceBtn != null && r.voiceBtn.gameObject.activeSelf)
+                + " imageCreated=" + (r.imageBtn != null)
+                + " imageActive=" + (r.imageBtn != null && r.imageBtn.gameObject.activeSelf)
+                + " retryCreated=" + (r.retryGo != null)
+                + " retryActive=" + (r.retryGo != null && r.retryGo.activeSelf));
             _rounds.Add(r);
             RefreshRoundBars();
             ScrollDown();   // 收尾后(含「语音/重试/删除」控制条)滚到底,让动作行随消息一起露出,不必下滑
@@ -2520,39 +2520,62 @@ namespace JianghuYouling
         {
             if (_content == null) return;
             bool archived = IsArchivedRound(r);
-            var row = new GameObject("RoundBar", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            var row = new GameObject("RoundBar", typeof(RectTransform), typeof(HorizontalLayoutGroup),
+                typeof(CanvasGroup), typeof(LayoutElement));
             row.transform.SetParent(_content, false);
             var hl = row.GetComponent<HorizontalLayoutGroup>();
             hl.childForceExpandWidth = false; hl.childForceExpandHeight = false;
             hl.childControlWidth = true; hl.childControlHeight = true;
             hl.spacing = 6f; hl.padding = new RectOffset(12, 14, 0, 2);
             hl.childAlignment = TextAnchor.MiddleRight;
+            LayoutElement barLayout = row.GetComponent<LayoutElement>();
+            barLayout.minHeight = barLayout.preferredHeight = 30f;
+            CanvasGroup barVisibility = row.GetComponent<CanvasGroup>();
+            barVisibility.alpha = 0f;
+            barVisibility.interactable = false;
+            barVisibility.blocksRaycasts = false;
 
-            // 语音:朗读本轮回话(单聊按 NPC 性别音色,助手用灵儿音色)。群聊暂读末位发言。生成中置灰,完成后可再点重生成。
+            // NPC 回复动作使用统一图标，只在相关回复或操作行悬浮时显示。
             if (!string.IsNullOrWhiteSpace(r.replyText) && !LooksLikeError(r.replyText))
             {
-                NewSmallBtn(row.transform, "语音", out var vb);
+                RoundActionIconFactory.Create(row.transform, "Voice", RoundActionIconFactory.VoiceSprite,
+                    "语音", out var vb);
                 r.voiceBtn = vb;
+                vb.gameObject.SetActive(TtsConfig.IsEnabled);
                 vb.onClick.AddListener(delegate { GenRoundVoice(r); });
                 if (!archived && !r.isAsst && r.replyNpcId >= 0)
                 {
-                    NewSmallBtn(row.transform, "生图", out var ib);
+                    RoundActionIconFactory.Create(row.transform, "Image", RoundActionIconFactory.ImageSprite,
+                        "生图", out var ib);
                     r.imageBtn = ib;
+                    ib.gameObject.SetActive(ImageGenerationConfig.LoadRaw().Enabled);
                     ib.onClick.AddListener(delegate { GenRoundImage(r); });
                 }
             }
             if (!archived && !r.proactive && !string.IsNullOrEmpty(r.playerInput))
             {
-                var retry = NewSmallBtn(row.transform, "重试", out var rb);
+                var retry = RoundActionIconFactory.Create(row.transform, "Retry",
+                    RoundActionIconFactory.RetrySprite, "重试", out var rb);
                 rb.onClick.AddListener(delegate { RetryRound(r); });
                 r.retryGo = retry;
             }
             if (!archived)
             {
-                NewSmallBtn(row.transform, "删除", out var db);
+                RoundActionIconFactory.Create(row.transform, "Delete",
+                    RoundActionIconFactory.DeleteSprite, "删除", out var db);
                 db.onClick.AddListener(delegate { DeleteRound(r); });
             }
 
+            foreach (GameObject target in r.rows)
+            {
+                if (target == null) continue;
+                var hover = target.AddComponent<SidebarConversationRowHover>();
+                hover.action = row;
+                hover.RefreshVisibility();
+            }
+            var barHover = row.AddComponent<SidebarConversationRowHover>();
+            barHover.action = row;
+            barHover.RefreshVisibility();
             r.bar = row;
             r.rows.Add(row);
         }
@@ -2583,6 +2606,16 @@ namespace JianghuYouling
             {
                 Object.Destroy(_voiceStatusRow);
                 _voiceStatusRow = null;
+            }
+        }
+
+        internal void RefreshMediaButtons(bool voice, bool image)
+        {
+            foreach (Round round in _rounds)
+            {
+                if (round == null) continue;
+                if (round.voiceBtn != null) round.voiceBtn.gameObject.SetActive(voice);
+                if (round.imageBtn != null) round.imageBtn.gameObject.SetActive(image);
             }
         }
 
@@ -3165,17 +3198,6 @@ namespace JianghuYouling
         {
             string safe = (value ?? "").Replace('\r', ' ').Replace('\n', ' ').Trim();
             return safe.Length > 180 ? safe.Substring(0, 180) + "…" : safe;
-        }
-
-        GameObject NewSmallBtn(Transform parent, string label, out Button btn)
-        {
-            var go = NewButton("RB", parent, label, 14, out btn);
-            go.GetComponent<Image>().color = new Color(0.28f, 0.29f, 0.31f, 0.5f);
-            var le = go.AddComponent<LayoutElement>();
-            le.preferredWidth = 60f; le.preferredHeight = 24f; le.flexibleWidth = 0f;
-            var lt = go.GetComponentInChildren<TextMeshProUGUI>();
-            if (lt != null) lt.color = new Color(0.82f, 0.84f, 0.86f, 0.92f);
-            return go;
         }
 
         // 只让最后一个「可重试」轮显示重试键(中间轮重试会令其后历史错位,故只许重试末轮)
@@ -4319,15 +4341,6 @@ namespace JianghuYouling
             _assistantActionButtons.Add(exportLogsButton);
             _assistantActionControls.Add(exportLogs);
 
-            GameObject introduceMod = NewButton("AssistantIntroduceMod", _taiwuActionBarGo.transform,
-                "介绍 Mod", 15, out Button introduceModButton);
-            Anchor(introduceMod.GetComponent<RectTransform>(), Vector2.zero, new Vector2(0, 1),
-                new Vector2(112, 3), new Vector2(224, -3));
-            StyleTaiwuActionButton(introduceMod);
-            introduceModButton.onClick.AddListener(IntroduceMod);
-            _assistantActionButtons.Add(introduceModButton);
-            _assistantActionControls.Add(introduceMod);
-
             _taiwuActionHint = NewText("Hint", _taiwuActionBarGo.transform, 13,
                 TextAlignmentOptions.MidlineRight);
             Anchor(_taiwuActionHint.rectTransform, Vector2.zero, Vector2.one,
@@ -4349,7 +4362,7 @@ namespace JianghuYouling
             _input = UiInput.Setup(inputGo, _font, 19, true, TMP_InputField.LineType.MultiLineSubmit, false, "写下想说的话…", 0, false, out _ta);
             var imeCaretFollower = inputGo.AddComponent<ChatImeCaretFollower>();
             imeCaretFollower.Input = _input;
-            // 上方 60px 留给当前页行动：NPC/群聊显示太吾行动，灵儿显示日志与 Mod 介绍。
+            // 上方 60px 留给当前页行动：NPC/群聊显示太吾行动，灵儿显示日志导出。
             if (_input.textViewport != null)
             {
                 var viewport = _input.textViewport;
@@ -5786,6 +5799,13 @@ namespace JianghuYouling
         internal static void NotifyImageGenerationDisabled()
         {
             foreach (ChatTab tab in _tabs) tab?.InvalidateAllImages();
+        }
+
+        internal static void NotifyMediaAvailabilityChanged()
+        {
+            bool voice = TtsConfig.IsEnabled;
+            bool image = ImageGenerationConfig.LoadRaw().Enabled;
+            foreach (ChatTab tab in _tabs) tab?.RefreshMediaButtons(voice, image);
         }
 
         // ---------- 窗口级状态(对外保持原语义,作用于当前活动页签)----------
@@ -7253,12 +7273,27 @@ namespace JianghuYouling
         {
             keepVisible = false;
             _hovering = false;
-            if (action != null) action.SetActive(false);
+            SetActionVisible(false);
         }
 
         public void RefreshVisibility()
         {
-            if (action != null) action.SetActive(keepVisible || _hovering);
+            SetActionVisible(keepVisible || _hovering);
+        }
+
+        void SetActionVisible(bool visible)
+        {
+            if (action == null) return;
+            CanvasGroup canvas = action.GetComponent<CanvasGroup>();
+            if (canvas == null)
+            {
+                action.SetActive(visible);
+                return;
+            }
+            if (!action.activeSelf) action.SetActive(true);
+            canvas.alpha = visible ? 1f : 0f;
+            canvas.interactable = visible;
+            canvas.blocksRaycasts = visible;
         }
     }
 }

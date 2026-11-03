@@ -26,7 +26,7 @@ namespace JianghuYouling
         private const string DefaultModel = "seed-tts-2.0";
         private static CancellationTokenSource _testCancellation;
         private static long _testVersion;
-        internal static string TestStatus { get; private set; } = "尚未测试";
+        internal static string TestStatus { get; private set; } = string.Empty;
 
         internal static List<ISettingItemInfo> CreateInfos()
         {
@@ -49,9 +49,7 @@ namespace JianghuYouling
                     () => (sbyte)(LoadValues(out _, out _).dialogueOnly ? 1 : 0),
                     value => Require(SaveField("dialogueOnly", value == 1 ? "1" : "0"))),
                 new SettingItemInfo<sbyte>(new NativeActionSettingAttribute(sub, 6, TestTitle)
-                    { ActionText = TestActionText }, () => 0, _ => StartTest()),
-                new SettingItemInfo<string>(new NativeReadonlyTextSettingAttribute(sub, 7, TestStatusTitle)
-                    { Height = 64f }, () => TestStatus, _ => { })
+                    { ActionText = TestActionText }, () => 0, _ => StartTest())
             };
         }
 
@@ -113,6 +111,7 @@ namespace JianghuYouling
                 {
                     if (!current.enabled) CancelActiveTest();
                     TestStatus = current.enabled ? "语音功能已开启，可测试接口" : "语音功能已关闭";
+                    ChatWindow.NotifyMediaAvailabilityChanged();
                     AISettingsHost.QueueRefresh();
                 }
                 return true;

@@ -33,15 +33,15 @@ namespace JianghuYouling.DevTest
                     + ReadRepoFile("src/JianghuYouling.Frontend/UI/AISettingsHost.cs");
                 Check(source.Contains("助手名字") && source.Contains("助手形象图") && source.Contains("助手人设"),
                     "assistant name, face and persona are independent native parameters");
-                Check(source.Contains("NativeTextSettingAttribute") && !source.Contains("ConfigWindow.OpenAssistantEditor"),
-                    "assistant fields use native controls instead of the legacy editor");
+                Check(source.Contains("NativeTextSettingAttribute"),
+                    "assistant fields use native controls");
                 string model = ReadRepoFile("src/JianghuYouling.Frontend/UI/AISettingsModelPane.cs");
                 Check(model.Contains("baseUrl") && model.Contains("apiKey") && model.Contains("bgModel")
                     && model.Contains("maxTokens") && model.Contains("contextWindow"),
                     "model pane covers every connection and budget field");
                 Check(model.Contains("Password = true") && model.Contains("LlmService.SaveRaw"),
                     "model key stays masked and uses the protected save path");
-                Check(!model.Contains("ConfigWindow.Open"), "model pane never opens the legacy window");
+                Check(model.Contains("NativeActionSettingAttribute"), "model pane uses native action controls");
                 string profiles = ReadRepoFile("src/JianghuYouling.Frontend/UI/AISettingsModelProfileView.cs");
                 Check(profiles.Contains("LlmProfileStore.Save") && profiles.Contains("LlmProfileStore.TryLoad")
                     && profiles.Contains("LlmProfileStore.Delete"), "profile save, activate and delete remain available");

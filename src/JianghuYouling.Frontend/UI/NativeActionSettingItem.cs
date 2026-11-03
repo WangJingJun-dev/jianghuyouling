@@ -12,6 +12,7 @@ namespace JianghuYouling
         private Func<sbyte> _getValueAction;
         private Action<sbyte> _setValueAction;
         private Button _button;
+        private Button _secondaryButton;
         private TMP_FontAsset _font;
         private Material _sharedMaterial;
         private sbyte _value;
@@ -43,25 +44,35 @@ namespace JianghuYouling
             if (_button != null) return;
             Debug.Log("[JHYL_AI_SETTINGS] action-build sub=" + _attr.SubCategory
                 + " font=" + (_font == null ? "null" : _font.name));
-            var go = new GameObject("JHYL_Action", typeof(RectTransform), typeof(Image), typeof(Button));
+            float primaryRight = _attr.SecondaryAction == null ? -8f : -196f;
+            _button = CreateButton("JHYL_Action", _attr.ActionText, primaryRight, InvokeAction);
+            if (_attr.SecondaryAction != null)
+                _secondaryButton = CreateButton("JHYL_SecondaryAction", _attr.SecondaryActionText,
+                    -8f, InvokeSecondaryAction);
+        }
+
+        private Button CreateButton(string name, LanguageKey actionText, float right,
+            UnityEngine.Events.UnityAction handler)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
             go.transform.SetParent(transform, false);
             go.GetComponent<Image>().color = new Color(0.25f, 0.34f, 0.30f, 0.96f);
             RectTransform rt = go.GetComponent<RectTransform>();
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 0.5f);
             rt.sizeDelta = new Vector2(180f, 36f);
-            rt.anchoredPosition = new Vector2(-8f, 0f);
-            _button = go.GetComponent<Button>();
-            Navigation navigation = _button.navigation;
+            rt.anchoredPosition = new Vector2(right, 0f);
+            Button button = go.GetComponent<Button>();
+            Navigation navigation = button.navigation;
             navigation.mode = Navigation.Mode.Explicit;
-            _button.navigation = navigation;
-            _button.onClick.AddListener(InvokeAction);
+            button.navigation = navigation;
+            button.onClick.AddListener(handler);
 
             var textGo = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
             textGo.transform.SetParent(go.transform, false);
             var text = textGo.GetComponent<TextMeshProUGUI>();
             if (_font != null) text.font = _font;
             if (_sharedMaterial != null) text.fontSharedMaterial = _sharedMaterial;
-            text.text = _attr.ActionText.Tr();
+            text.text = actionText.Tr();
             text.fontSize = 17f;
             text.alignment = TextAlignmentOptions.Center;
             text.color = new Color(0.92f, 0.90f, 0.82f, 1f);
@@ -71,6 +82,7 @@ namespace JianghuYouling
             textRt.anchorMax = Vector2.one;
             textRt.offsetMin = Vector2.zero;
             textRt.offsetMax = Vector2.zero;
+            return button;
         }
 
         private void InvokeAction()
@@ -90,8 +102,29 @@ namespace JianghuYouling
             }
         }
 
+        private void InvokeSecondaryAction()
+        {
+            if (_attr.SecondaryAction == null) return;
+            try
+            {
+                _attr.SecondaryAction.Invoke();
+                NotifyChanged();
+                Debug.Log("[JHYL_AI_SETTINGS] action sub=" + _attr.SubCategory + " secondaryInvoked=true");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[JHYL_AI_SETTINGS] secondary action sub=" + _attr.SubCategory
+                    + " error=" + ex.GetType().Name);
+            }
+        }
+
         internal Selectable[] Focusables()
-            => _button == null ? new Selectable[0] : new Selectable[] { _button };
+        {
+            if (_button == null) return new Selectable[0];
+            return _secondaryButton == null
+                ? new Selectable[] { _button }
+                : new Selectable[] { _button, _secondaryButton };
+        }
 
         public override object GetValue() => _value;
 
@@ -104,11 +137,13 @@ namespace JianghuYouling
         public override void SetInteractable(bool interactable)
         {
             if (_button != null) _button.interactable = interactable;
+            if (_secondaryButton != null) _secondaryButton.interactable = interactable;
         }
 
         private void OnDestroy()
         {
             if (_button != null) _button.onClick.RemoveListener(InvokeAction);
+            if (_secondaryButton != null) _secondaryButton.onClick.RemoveListener(InvokeSecondaryAction);
         }
     }
 }

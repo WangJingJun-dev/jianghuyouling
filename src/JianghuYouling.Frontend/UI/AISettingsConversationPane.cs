@@ -15,7 +15,6 @@ namespace JianghuYouling
         internal const LanguageKey GhostwriteLearningTitle = (LanguageKey)6125;
         internal const LanguageKey StreamTitle = (LanguageKey)6126;
         internal const LanguageKey ThinkingTitle = (LanguageKey)6127;
-        internal const LanguageKey GroupRoundsTitle = (LanguageKey)6128;
         internal const LanguageKey ProactiveEnabledTitle = (LanguageKey)6129;
         internal const LanguageKey ProactiveFrequencyTitle = (LanguageKey)6130;
         internal const LanguageKey ThinkingPromptTitle = (LanguageKey)6131;
@@ -29,9 +28,6 @@ namespace JianghuYouling
         internal const LanguageKey SmallText = (LanguageKey)6139;
         internal const LanguageKey FontMediumText = (LanguageKey)6140;
         internal const LanguageKey LargeText = (LanguageKey)6141;
-        internal const LanguageKey OneRoundText = (LanguageKey)6142;
-        internal const LanguageKey TwoRoundsText = (LanguageKey)6143;
-        internal const LanguageKey ThreeRoundsText = (LanguageKey)6144;
         internal const LanguageKey VeryLowText = (LanguageKey)6145;
 
         internal static List<ISettingItemInfo> CreateInfos()
@@ -81,17 +77,13 @@ namespace JianghuYouling
                     if (AISettingsSave.Checked(ThinkingStore.Save(value), "thinking"))
                         ChatWindow.ShowThinking = ThinkingStore.Load();
                 }),
-                new SettingItemInfo<sbyte>(new SwitchButtonSettingAttribute(sub, 9, GroupRoundsTitle)
-                    { Options = new[] { OneRoundText, TwoRoundsText, ThreeRoundsText } },
-                    () => (sbyte)(GroupRoundsStore.Load() - 1),
-                    value => AISettingsSave.Checked(GroupRoundsStore.Save(value + 1), "group_rounds")),
-                new SettingItemInfo<bool>(new BoolSettingAttribute(sub, 10, ProactiveEnabledTitle),
+                new SettingItemInfo<bool>(new BoolSettingAttribute(sub, 9, ProactiveEnabledTitle),
                     NpcProactiveChatStore.LoadEnabled, value =>
                     {
                         if (AISettingsSave.Checked(NpcProactiveChatStore.SaveEnabled(value), "npc_proactive_enabled"))
                             NpcProactiveChatScheduler.NotifySettingsChanged();
                     }),
-                new SettingItemInfo<sbyte>(new SwitchButtonSettingAttribute(sub, 11, ProactiveFrequencyTitle)
+                new SettingItemInfo<sbyte>(new SwitchButtonSettingAttribute(sub, 10, ProactiveFrequencyTitle)
                     { Options = new[] { VeryLowText, AISettingsAssistantPane.LowText,
                         AISettingsAssistantPane.MidText, AISettingsAssistantPane.HighText } },
                     () => (sbyte)NpcProactiveChatStore.LoadFrequency(), value =>
@@ -99,7 +91,7 @@ namespace JianghuYouling
                         if (AISettingsSave.Checked(NpcProactiveChatStore.SaveFrequency(value), "npc_proactive_frequency"))
                             NpcProactiveChatScheduler.NotifySettingsChanged();
                     }),
-                new SettingItemInfo<string>(new NativeTextSettingAttribute(sub, 12, ThinkingPromptTitle)
+                new SettingItemInfo<string>(new NativeTextSettingAttribute(sub, 11, ThinkingPromptTitle)
                     { Multiline = true, CharacterLimit = ThinkingPromptRule.MaxPromptChars },
                     ThinkingPromptRuleStore.Load, value =>
                         Require(ThinkingPromptRuleStore.Save(value), "thinking_prompt_save_failed"))

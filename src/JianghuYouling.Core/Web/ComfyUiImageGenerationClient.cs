@@ -49,6 +49,12 @@ namespace JianghuYouling.Core.Web
 
         internal static bool TryValidateWorkflow(string workflowJson, string model, string prompt,
             string referenceName, out JObject workflow, out string error)
+            => TryValidateWorkflow(workflowJson, model, prompt, referenceName,
+                ImageGenerationClient.LocalLandscapeWidth, ImageGenerationClient.LocalLandscapeHeight,
+                out workflow, out error);
+
+        internal static bool TryValidateWorkflow(string workflowJson, string model, string prompt,
+            string referenceName, int width, int height, out JObject workflow, out string error)
         {
             workflow = null;
             error = null;
@@ -81,8 +87,8 @@ namespace JianghuYouling.Core.Web
             int promptMarkers = 0, referenceMarkers = 0, modelMarkers = 0;
             int widthMarkers = 0, heightMarkers = 0, unknownMarkers = 0;
             ReplaceMarkers(workflow, model ?? "", prompt ?? "", referenceName ?? "reference.png",
-                ref promptMarkers, ref referenceMarkers, ref modelMarkers, ref widthMarkers, ref heightMarkers,
-                ref unknownMarkers);
+                width, height, ref promptMarkers, ref referenceMarkers, ref modelMarkers,
+                ref widthMarkers, ref heightMarkers, ref unknownMarkers);
             if (promptMarkers == 0 || referenceMarkers == 0 || widthMarkers == 0 || heightMarkers == 0)
             {
                 error = "ComfyUI 工作流必须包含提示词、参考图、宽度和高度四个 JHYL 标记";
@@ -100,14 +106,15 @@ namespace JianghuYouling.Core.Web
         }
 
         static void ReplaceMarkers(JToken token, string model, string prompt, string referenceName,
-            ref int promptMarkers, ref int referenceMarkers, ref int modelMarkers,
+            int width, int height, ref int promptMarkers, ref int referenceMarkers, ref int modelMarkers,
             ref int widthMarkers, ref int heightMarkers, ref int unknownMarkers)
         {
             if (token is JContainer container)
             {
                 foreach (JToken child in new List<JToken>(container.Children()))
-                    ReplaceMarkers(child, model, prompt, referenceName, ref promptMarkers, ref referenceMarkers,
-                        ref modelMarkers, ref widthMarkers, ref heightMarkers, ref unknownMarkers);
+                    ReplaceMarkers(child, model, prompt, referenceName, width, height,
+                        ref promptMarkers, ref referenceMarkers, ref modelMarkers,
+                        ref widthMarkers, ref heightMarkers, ref unknownMarkers);
                 return;
             }
             if (!(token is JValue value) || value.Type != JTokenType.String) return;
@@ -125,10 +132,10 @@ namespace JianghuYouling.Core.Web
                     value.Value = model; modelMarkers++; break;
                 case WidthMarker:
                 case WidthMarkerCompact:
-                    value.Value = ImageGenerationClient.LocalLandscapeWidth; widthMarkers++; break;
+                    value.Value = width; widthMarkers++; break;
                 case HeightMarker:
                 case HeightMarkerCompact:
-                    value.Value = ImageGenerationClient.LocalLandscapeHeight; heightMarkers++; break;
+                    value.Value = height; heightMarkers++; break;
                 default:
                     if (LooksLikeMarker(text)) unknownMarkers++;
                     break;
@@ -164,8 +171,9 @@ namespace JianghuYouling.Core.Web
                 {
                     string uploaded = await UploadReferenceAsync(
                         endpoint, key, request.ReferencePng, lifetime.Token).ConfigureAwait(false);
+                    ImageGenerationClient.TryParseSize(request.Size, out int width, out int height);
                     if (!TryValidateWorkflow(request.WorkflowJson, request.Model, request.Prompt, uploaded,
-                        out JObject workflow, out string workflowError))
+                        width, height, out JObject workflow, out string workflowError))
                         return Fail(workflowError);
                     string clientId = "jhyl-" + Guid.NewGuid().ToString("N");
                     string promptId = await SubmitAsync(endpoint, key, workflow, clientId, lifetime.Token)

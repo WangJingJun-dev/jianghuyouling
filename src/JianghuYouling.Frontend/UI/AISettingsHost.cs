@@ -81,7 +81,6 @@ namespace JianghuYouling
                 case AISettingsConversationPane.GhostwriteLearningTitle: return "代笔自学习";
                 case AISettingsConversationPane.StreamTitle: return "流式输出";
                 case AISettingsConversationPane.ThinkingTitle: return "显示思量";
-                case AISettingsConversationPane.GroupRoundsTitle: return "群聊自动轮数";
                 case AISettingsConversationPane.ProactiveEnabledTitle: return "主动名单人物来信";
                 case AISettingsConversationPane.ProactiveFrequencyTitle: return "主动来信频率";
                 case AISettingsConversationPane.ThinkingPromptTitle: return "思考表达提示词";
@@ -95,9 +94,6 @@ namespace JianghuYouling
                 case AISettingsConversationPane.SmallText: return "小";
                 case AISettingsConversationPane.FontMediumText: return "中";
                 case AISettingsConversationPane.LargeText: return "大";
-                case AISettingsConversationPane.OneRoundText: return "1 轮";
-                case AISettingsConversationPane.TwoRoundsText: return "2 轮";
-                case AISettingsConversationPane.ThreeRoundsText: return "3 轮";
                 case AISettingsConversationPane.VeryLowText: return "极低";
                 case AISettingsMonthlyPane.AiEventTitle: return "每月 AI 江湖事件";
                 case AISettingsMonthlyPane.CompanionTitle: return "过月主动行事";
@@ -109,7 +105,6 @@ namespace JianghuYouling
                 case AISettingsModelProfileView.SaveTitle: return "保存当前为档案";
                 case AISettingsModelProfileView.ActivateTitle: return "立即切换档案";
                 case AISettingsModelProfileView.DeleteTitle: return "删除档案";
-                case AISettingsModelProfileView.StatusTitle: return "档案状态";
                 case AISettingsModelProfileView.SaveActionText: return "保存档案";
                 case AISettingsModelProfileView.ActivateActionText: return "立即切换";
                 case AISettingsModelProfileView.DeleteActionText: return "删除档案";
@@ -146,8 +141,6 @@ namespace JianghuYouling
                 case AISettingsImagePane.StyleTitle: return "附加画面风格";
                 case AISettingsImagePane.WatermarkTitle: return "生成图片水印";
                 case AISettingsExperiencePane.PresetTitle: return "体验档位";
-                case AISettingsExperiencePane.ApplyTitle: return "应用所选档位";
-                case AISettingsExperiencePane.ApplyActionText: return "应用档位";
                 case AISettingsExperiencePane.SummaryTitle: return "当前体验摘要";
                 case AISettingsExperiencePane.EconomyText: return "省钱";
                 case AISettingsExperiencePane.BalancedText: return "均衡";
@@ -260,8 +253,8 @@ namespace JianghuYouling
                     holder.name = HolderName;
                     holder.SetAsLastSibling();
                     holder.gameObject.SetActive(false);
+                    PrepareHolder(holder);
                 }
-                PrepareHolder(holder);
                 for (int i = 0; i < categories.Length && i < content.childCount; i++)
                 {
                     Transform child = content.GetChild(i);

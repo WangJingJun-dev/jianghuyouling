@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Game.Views.SystemSetting;
+using HarmonyLib;
 using JianghuYouling.Core.Text;
 using UnityEngine;
 
@@ -24,13 +25,16 @@ namespace JianghuYouling
             ModIntroductionWindow.TryLoadSupportQr(out qr);
             return new List<ISettingItemInfo>
             {
-                new SettingItemInfo<string>(new NativeReadonlyTextSettingAttribute(sub, 1, OpenSourceTitle),
-                    () => OpenSourceProjectContent.FullText, _ => { }),
+                new SettingItemInfo<string>(new NativeReadonlyTextSettingAttribute(sub, 1, OpenSourceTitle)
+                    { CenterVertically = true }, () => OpenSourceProjectContent.FullText, _ => { }),
                 new SettingItemInfo<sbyte>(new NativeActionSettingAttribute(sub, 2, OpenLinkTitle)
-                    { ActionText = OpenLinkActionText }, () => 0, _ => OpenProject()),
-                new SettingItemInfo<sbyte>(new NativeActionSettingAttribute(sub, 3, CopyLinkTitle)
-                    { ActionText = CopyLinkActionText }, () => 0, _ => CopyProjectLink()),
-                new SettingItemInfo<string>(new NativeReadonlyTextSettingAttribute(sub, 4, SupportTitle), SupportText, _ => { }),
+                    {
+                        ActionText = OpenLinkActionText,
+                        SecondaryActionText = CopyLinkActionText,
+                        SecondaryAction = CopyProjectLink
+                    }, () => 0, _ => OpenProject()),
+                new SettingItemInfo<string>(new NativeReadonlyTextSettingAttribute(sub, 4, SupportTitle)
+                    { CenterVertically = true }, SupportText, _ => { }),
                 new SettingItemInfo<sbyte>(new NativeImageSettingAttribute(sub, 5, QrTitle)
                     { Image = qr, Caption = qr != null ? QrCaption : QrFallbackCaption }, () => 0, _ => { })
             };
@@ -46,5 +50,15 @@ namespace JianghuYouling
         private static void OpenProject() => Application.OpenURL(OpenSourceProjectContent.Url);
 
         private static void CopyProjectLink() => GUIUtility.systemCopyBuffer = OpenSourceProjectContent.Url;
+    }
+
+    [HarmonyPatch(typeof(SettingGroupItem), "UpdateItemInteractableState")]
+    internal static class AISettingsAboutHoverPatch
+    {
+        private static void Postfix(SettingItemBase item, ISettingItemInfo info)
+        {
+            if (info.Attribute.SubCategory != AISettingsCategorySync.AboutSubCategory) return;
+            NativeSettingControlFactory.SetRowHoverEnabled(item, false);
+        }
     }
 }

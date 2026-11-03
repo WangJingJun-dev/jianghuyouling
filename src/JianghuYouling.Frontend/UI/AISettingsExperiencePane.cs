@@ -7,8 +7,6 @@ namespace JianghuYouling
     internal static class AISettingsExperiencePane
     {
         internal const LanguageKey PresetTitle = (LanguageKey)6186;
-        internal const LanguageKey ApplyTitle = (LanguageKey)6187;
-        internal const LanguageKey ApplyActionText = (LanguageKey)6188;
         internal const LanguageKey SummaryTitle = (LanguageKey)6189;
         internal const LanguageKey EconomyText = (LanguageKey)6300;
         internal const LanguageKey BalancedText = (LanguageKey)6301;
@@ -18,15 +16,15 @@ namespace JianghuYouling
 
         internal static List<ISettingItemInfo> CreateInfos()
         {
+            ExperiencePresetDefinition matched = ExperiencePresetPolicy.Match(
+                AiEventStore.Load(), CompanionMonthlyStore.Load(), CompanionMonthlyStore.LoadCount(),
+                GroupRoundsStore.Load(), AssistantProactiveStore.Load());
+            _selectedIndex = ExperiencePresetPolicy.IndexOf(matched?.Id);
             ESettingSubCategory sub = AISettingsCategorySync.ExperienceSubCategory;
             return new List<ISettingItemInfo>
             {
                 new SettingItemInfo<sbyte>(new NativeExperiencePresetSettingAttribute(sub, 1, PresetTitle),
-                    () => (sbyte)_selectedIndex, Select),
-                new SettingItemInfo<sbyte>(new NativeActionSettingAttribute(sub, 2, ApplyTitle)
-                    { ActionText = ApplyActionText }, () => 0, _ => Apply()),
-                new SettingItemInfo<string>(new NativeReadonlyTextSettingAttribute(sub, 3, SummaryTitle)
-                    { Height = 64f }, Summary, _ => { })
+                    () => (sbyte)_selectedIndex, Select)
             };
         }
 
@@ -34,7 +32,10 @@ namespace JianghuYouling
         {
             if (value < 0 || value > 2) return;
             _selectedIndex = value;
+            Apply();
         }
+
+        internal static string CurrentStatus => Summary();
 
         private static string Summary()
         {

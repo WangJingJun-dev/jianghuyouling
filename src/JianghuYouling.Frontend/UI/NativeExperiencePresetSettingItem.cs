@@ -18,10 +18,11 @@ namespace JianghuYouling
 
     internal sealed class NativeExperiencePresetSettingItem : SettingItemBase
     {
-        private const float RowHeight = 520f;
+        private const float RowHeight = 380f;
         private int _selectedIndex;
         private Button[] _buttons;
         private Image[] _cards;
+        private GameObject[] _selectionBorders;
         private Color[] _backgrounds;
         private Action<sbyte> _setValueAction;
         private bool _interactable = true;
@@ -57,28 +58,44 @@ namespace JianghuYouling
             if (root != null) root.sizeDelta = new Vector2(root.sizeDelta.x, RowHeight);
             _buttons = new Button[3];
             _cards = new Image[3];
+            _selectionBorders = new GameObject[3];
             _backgrounds = new Color[3];
-            for (int i = 0; i < 3; i++) CreateCard(i);
+            var row = new GameObject("PresetRow", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            row.transform.SetParent(transform, false);
+            RectTransform rowRect = row.GetComponent<RectTransform>();
+            rowRect.anchorMin = Vector2.zero;
+            rowRect.anchorMax = Vector2.one;
+            rowRect.offsetMin = Vector2.zero;
+            rowRect.offsetMax = Vector2.zero;
+            HorizontalLayoutGroup layoutGroup = row.GetComponent<HorizontalLayoutGroup>();
+            layoutGroup.childAlignment = TextAnchor.MiddleCenter;
+            layoutGroup.childControlWidth = true;
+            layoutGroup.childControlHeight = true;
+            layoutGroup.childForceExpandWidth = false;
+            layoutGroup.childForceExpandHeight = false;
+            layoutGroup.padding = new RectOffset(0, 0, 18, 18);
+            layoutGroup.spacing = 12f;
+            for (int i = 0; i < 3; i++) CreateCard(row.transform, i);
             RefreshSelection();
         }
 
-        private void CreateCard(int index)
+        private void CreateCard(Transform parent, int index)
         {
             string id = index == 0 ? ExperiencePresetPolicy.EconomyId
                 : index == 2 ? ExperiencePresetPolicy.BestId : ExperiencePresetPolicy.BalancedId;
             if (!ExperiencePresetPolicy.TryGet(id, out ExperiencePresetDefinition definition)) return;
-            float left = index == 0 ? 4f : index == 1 ? 216f : 428f;
-            float right = left + 200f;
             string heading = index == 2 ? "★ " + definition.DisplayName : definition.DisplayName;
             string subheading = index == 0 ? "适合控制消耗" : index == 1 ? "兼顾热闹与消耗" : "完整的活江湖";
             Color background = index == 0 ? new Color(0.22f, 0.28f, 0.27f, 0.98f)
                 : index == 1 ? new Color(0.26f, 0.34f, 0.32f, 0.98f)
                     : new Color(0.47f, 0.32f, 0.12f, 0.99f);
-            ExperiencePresetCardView.Create(transform, "PresetCard_" + index, left, right,
-                heading, subheading, SettingsText(definition), background, index == 2, out Button button);
+            ExperiencePresetCardView.Create(parent, "PresetCard_" + index,
+                heading, subheading, SettingsText(definition), background, index == 2,
+                out Button button, out GameObject selectionBorder);
             button.onClick.AddListener(() => Select(index));
             _buttons[index] = button;
             _cards[index] = button.GetComponent<Image>();
+            _selectionBorders[index] = selectionBorder;
             _backgrounds[index] = background;
             button.interactable = _interactable;
         }
@@ -106,9 +123,13 @@ namespace JianghuYouling
         {
             if (_cards == null) return;
             for (int i = 0; i < _cards.Length; i++)
+            {
                 if (_cards[i] != null)
                     _cards[i].color = i == _selectedIndex
-                        ? Color.Lerp(_backgrounds[i], Color.white, 0.20f) : _backgrounds[i];
+                        ? Color.Lerp(_backgrounds[i], Color.white, 0.12f) : _backgrounds[i];
+                if (_selectionBorders[i] != null)
+                    _selectionBorders[i].SetActive(i == _selectedIndex);
+            }
         }
 
         public override object GetValue() => _selectedIndex;

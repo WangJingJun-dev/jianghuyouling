@@ -29,6 +29,10 @@
                       Link="Assets\workshop-detail-afdian-qr-cropped.png"
                       LogicalName="JianghuYouling.Frontend.Assets.workshop-detail-afdian-qr-cropped.png"
                       Condition="Exists('..\..\deploy\workshop-detail-afdian-qr-cropped.png')" />
+    <EmbeddedResource Include="..\..\deploy\round-actions\voice.png" LogicalName="JianghuYouling.Frontend.Assets.RoundActions.voice.png" />
+    <EmbeddedResource Include="..\..\deploy\round-actions\image.png" LogicalName="JianghuYouling.Frontend.Assets.RoundActions.image.png" />
+    <EmbeddedResource Include="..\..\deploy\round-actions\retry.png" LogicalName="JianghuYouling.Frontend.Assets.RoundActions.retry.png" />
+    <EmbeddedResource Include="..\..\deploy\round-actions\delete.png" LogicalName="JianghuYouling.Frontend.Assets.RoundActions.delete.png" />
     <!-- 只部署当前版本正在使用的封面与详情图，避免把历史封面一起打进 Mod/工坊。 -->
     <WorkshopAsset Include="..\..\LICENSE;
                             ..\..\NOTICE;

@@ -209,6 +209,36 @@ namespace JianghuYouling.DevTest
                 return 0;
             }
 
+            if (args != null && Array.Exists(args, a => string.Equals(a, "--image-only", StringComparison.OrdinalIgnoreCase)))
+            {
+                try
+                {
+                    TestImageGenerationProviderSupport();
+                    TestImageGenerationDisabledConfiguration();
+                    MediaFeatureSwitchTests.Run();
+                    return 0;
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine("[IMAGE-ONLY FAIL] " + ex.GetType().Name + ": " + ex.Message);
+                    return 1;
+                }
+            }
+
+            if (args != null && Array.Exists(args, a => string.Equals(a, "--experience-only", StringComparison.OrdinalIgnoreCase)))
+            {
+                try
+                {
+                    TestExperiencePresetPolicy();
+                    return 0;
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine("[EXPERIENCE-ONLY FAIL] " + ex.GetType().Name + ": " + ex.Message);
+                    return 1;
+                }
+            }
+
             if (args != null && Array.Exists(args, a => string.Equals(a, "--provider-only", StringComparison.OrdinalIgnoreCase)))
             {
                 try
@@ -6184,11 +6214,12 @@ namespace JianghuYouling.DevTest
                 ApiKey = "fixture",
                 Model = "gpt-image-2",
                 Prompt = "让参考图中的两名人物在武侠客栈内交谈。",
-                ReferencePng = reference
+                ReferencePng = reference,
+                Size = "1600x900"
             };
             AssertEq("OpenAI 生图协议通过安全校验",
                 ImageGenerationClient.TryValidate(request, out _, out _).ToString(), "True");
-            AssertEq("OpenAI 固定使用横向 2048×1152",
+            AssertEq("OpenAI 缺省尺寸保留横向 2048×1152",
                 ImageGenerationClient.FixedSizeForProvider(ImageGenerationClient.ProviderOpenAI),
                 ImageGenerationClient.FixedLandscapeSize);
 
@@ -6211,8 +6242,7 @@ namespace JianghuYouling.DevTest
                         p => (p.Headers.ContentDisposition?.Name ?? "").Trim('"'),
                         p => p.ReadAsStringAsync().GetAwaiter().GetResult());
                 AssertEq("OpenAI multipart 模型字段", fields["model"], "gpt-image-2");
-                AssertEq("OpenAI multipart 固定横向尺寸", fields["size"],
-                    ImageGenerationClient.FixedLandscapeSize);
+                AssertEq("OpenAI multipart 使用自定义宽高", fields["size"], "1600x900");
                 AssertEq("OpenAI multipart 固定 PNG 输出", fields["output_format"], "png");
                 AssertEq("OpenAI multipart 单图输出", fields["n"], "1");
 
@@ -6223,6 +6253,19 @@ namespace JianghuYouling.DevTest
                 AssertEq("OpenAI 参考图字节原样进入 multipart",
                     image.ReadAsByteArrayAsync().GetAwaiter().GetResult().SequenceEqual(reference).ToString(),
                     "True");
+            }
+
+            request.Provider = ImageGenerationClient.ProviderDoubao;
+            using (HttpContent content = ImageGenerationClient.BuildHttpContent(request))
+            {
+                JObject body = JObject.Parse(content.ReadAsStringAsync().GetAwaiter().GetResult());
+                AssertEq("Doubao 请求使用自定义宽高", body["size"]?.ToString(), "1600x900");
+            }
+            request.Provider = ImageGenerationClient.ProviderOpenRouter;
+            using (HttpContent content = ImageGenerationClient.BuildHttpContent(request))
+            {
+                JObject body = JObject.Parse(content.ReadAsStringAsync().GetAwaiter().GetResult());
+                AssertEq("OpenRouter 根据自定义宽高计算比例", body["aspect_ratio"]?.ToString(), "16:9");
             }
 
             request.Endpoint = "http://127.0.0.1:8188/v1/images/edits";
@@ -6249,20 +6292,21 @@ namespace JianghuYouling.DevTest
             request.ApiKey = "fixture";
             AssertEq("本机 ComfyUI 配置密钥后通过安全校验",
                 ImageGenerationClient.TryValidate(request, out _, out _).ToString(), "True");
-            AssertEq("ComfyUI 使用适合 8GB 显存的固定 1024×576",
+            AssertEq("ComfyUI 缺省尺寸保留适合 8GB 显存的 1024×576",
                 ImageGenerationClient.FixedSizeForProvider(ImageGenerationClient.ProviderComfyUI),
                 ImageGenerationClient.LocalLandscapeSize);
             AssertEq("ComfyUI 工作流标记可安全替换",
                 ComfyUiImageGenerationClient.TryValidateWorkflow(workflowJson, request.Model,
-                    request.Prompt, "uploaded-reference.png", out JObject rendered, out _).ToString(), "True");
+                    request.Prompt, "uploaded-reference.png", 1600, 900,
+                    out JObject rendered, out _).ToString(), "True");
             AssertEq("ComfyUI 提示词只替换到工作流值",
                 rendered["2"]?["inputs"]?["text"]?.ToString(), request.Prompt);
             AssertEq("ComfyUI 参考图名只替换到工作流值",
                 rendered["1"]?["inputs"]?["image"]?.ToString(), "uploaded-reference.png");
-            AssertEq("ComfyUI 本机宽度标记使用 1024",
-                rendered["4"]?["inputs"]?["width"]?.Value<int>().ToString(), "1024");
-            AssertEq("ComfyUI 本机高度标记使用 576",
-                rendered["4"]?["inputs"]?["height"]?.Value<int>().ToString(), "576");
+            AssertEq("ComfyUI 宽度标记使用自定义宽度",
+                rendered["4"]?["inputs"]?["width"]?.Value<int>().ToString(), "1600");
+            AssertEq("ComfyUI 高度标记使用自定义高度",
+                rendered["4"]?["inputs"]?["height"]?.Value<int>().ToString(), "900");
             string exportedSingleBraceWorkflow = @"{
               '11': {'class_type':'EmptyLatentImage','inputs':{'width':'{JHYL_WIDTH}','height':'{JHYL_HEIGHT}'}},
               '18': {'class_type':'CLIPTextEncode','inputs':{'text':'{JHYL_PROMPT}'}},
@@ -12161,7 +12205,6 @@ namespace JianghuYouling.DevTest
 
             string safeInput = ReadUi("SafeChatInputField.cs");
             string persona = ReadUi("PersonaWindow.cs");
-            string config = ReadUi("ConfigWindow.cs");
             string structured = ReadUi("StructuredWorldBookWindow.cs");
 
             AssertEq("长文本首次用户点击只消费一次全选且禁用程序化聚焦抢跑",
@@ -12188,17 +12231,6 @@ namespace JianghuYouling.DevTest
                 (persona.Contains("ArmFirstClickSelectAll();")
                     && persona.Contains("longInput.ArmSelectAllOnNextPointerDown(true);"))
                     .ToString(), "True");
-            AssertEq("设置页人设载入、草稿恢复和还原后都重新武装",
-                ((config.Split(new[] { "ArmFirstClickSelectAll(_personaInput);" },
-                    StringSplitOptions.None).Length - 1) >= 4
-                    && !config.Contains("ArmFirstClickSelectAll(_asstPersonaInput);"))
-                    .ToString(), "True");
-            AssertEq("模型档案使用下拉选择，移除左右翻页按钮",
-                (!config.Contains("\"‹\"") && !config.Contains("\"›\"")
-                    && !config.Contains("ProfilePrev") && !config.Contains("ProfileNext")
-                    && config.Contains("ModelProfileDropdown.Create(pane.transform, _font)")
-                    && config.Contains("onValueChanged.AddListener(SelectLlmProfile)")
-                    && config.Contains("SetValueWithoutNotify(any ? _profileIndex : 0)")).ToString(), "True");
             string dropdown = ReadUi("ModelProfileDropdown.cs");
             AssertEq("模型下拉列表可滚动、继承字号且弹层盖过设置窗",
                 (dropdown.Contains("scroll.vertical = true") && dropdown.Contains("UiFontSizeStore.Bind(text, 16)")
@@ -12234,6 +12266,10 @@ namespace JianghuYouling.DevTest
                 ExperiencePresetPolicy.TryGet("unknown", out _).ToString(), "False");
             AssertEq("当前五项设置能反查同一档位",
                 ExperiencePresetPolicy.Match(false, false, 0, 1, 0)?.Id, ExperiencePresetPolicy.EconomyId);
+            AssertEq("重启后可由已保存设置恢复最佳体验选中索引",
+                ExperiencePresetPolicy.IndexOf(ExperiencePresetPolicy.Match(true, true, 5, 3, 3)?.Id).ToString(), "2");
+            AssertEq("自定义组合不会冒充均衡档",
+                ExperiencePresetPolicy.IndexOf(ExperiencePresetPolicy.Match(true, false, 2, 1, 0)?.Id).ToString(), "-1");
         }
 
         private static void TestMonthlyTransactionSourceContracts()

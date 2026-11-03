@@ -26,7 +26,7 @@ namespace JianghuYouling
         private const string TestReferencePng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=";
         private static CancellationTokenSource _testCancellation;
         private static long _testVersion;
-        internal static string TestStatus { get; private set; } = "尚未测试";
+        internal static string TestStatus { get; private set; } = string.Empty;
 
         internal static List<ISettingItemInfo> CreateInfos()
         {
@@ -48,10 +48,8 @@ namespace JianghuYouling
                 new SettingItemInfo<string>(new NativeTextSettingAttribute(sub, 5, ModelTitle)
                     { CharacterLimit = 256 }, () => ImageGenerationConfig.LoadRaw().Model,
                     value => SaveField("model", value)),
-                new SettingItemInfo<string>(new NativeReadonlyTextSettingAttribute(sub, 6, SizeTitle)
-                    { Height = 44f },
-                    () => ImageGenerationClient.FixedSizeForProvider(ImageGenerationConfig.LoadRaw().Provider),
-                    _ => { }),
+                new SettingItemInfo<string>(new NativeImageSizeSettingAttribute(sub, 6, SizeTitle),
+                    () => ImageGenerationConfig.LoadRaw().Size, value => SaveField("size", value)),
                 new SettingItemInfo<string>(new NativeTextSettingAttribute(sub, 7, WorkflowTitle)
                     { CharacterLimit = ImageGenerationConfig.MaxWorkflowPathChars },
                     () => ImageGenerationConfig.LoadRaw().WorkflowPath,
@@ -63,9 +61,7 @@ namespace JianghuYouling
                     () => ImageGenerationConfig.LoadRaw().Watermark,
                     value => SaveField("watermark", value ? "1" : "0")),
                 new SettingItemInfo<sbyte>(new NativeActionSettingAttribute(sub, 10, TestTitle)
-                    { ActionText = TestActionText }, () => 0, _ => StartTest()),
-                new SettingItemInfo<string>(new NativeReadonlyTextSettingAttribute(sub, 11, TestStatusTitle)
-                    { Height = 64f }, () => TestStatus, _ => { })
+                    { ActionText = TestActionText }, () => 0, _ => StartTest())
             };
         }
 
@@ -77,15 +73,20 @@ namespace JianghuYouling
             if (field == "endpoint") current.Endpoint = (value ?? "").Trim();
             if (field == "apiKey") current.ApiKey = (value ?? "").Trim();
             if (field == "model") current.Model = (value ?? "").Trim();
+            if (field == "size") current.Size = (value ?? "").Trim();
             if (field == "workflowPath") current.WorkflowPath = (value ?? "").Trim();
             if (field == "style") current.Style = (value ?? "").Trim();
             if (field == "watermark") current.Watermark = value == "1";
-            current.Size = ImageGenerationClient.FixedSizeForProvider(current.Provider);
             if (!ImageGenerationConfig.SaveExplicit(current))
             {
                 if (field == "enabled")
                 {
                     TestStatus = "开关保存失败：" + ImageGenerationConfig.LastSaveError;
+                    AISettingsHost.QueueRefresh();
+                }
+                else if (field == "size")
+                {
+                    TestStatus = "输出尺寸保存失败：" + ImageGenerationConfig.LastSaveError;
                     AISettingsHost.QueueRefresh();
                 }
                 throw new InvalidOperationException("image_save_failed");
@@ -94,6 +95,7 @@ namespace JianghuYouling
             {
                 if (!current.Enabled) CancelActiveTest();
                 TestStatus = current.Enabled ? "生图功能已开启，可测试接口" : "生图功能已关闭";
+                ChatWindow.NotifyMediaAvailabilityChanged();
                 AISettingsHost.QueueRefresh();
             }
             if (field == "provider") AISettingsHost.QueueRefresh();

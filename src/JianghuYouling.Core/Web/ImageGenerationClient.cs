@@ -101,9 +101,14 @@ namespace JianghuYouling.Core.Web
             if (request.ReferencePng == null || request.ReferencePng.Length < 64
                 || request.ReferencePng.Length > MaxReferenceBytes || !LooksLikePng(request.ReferencePng))
             { error = "人物参考图不是有效 PNG，或超过 16 MiB"; return false; }
+            if (!string.IsNullOrWhiteSpace(request.Size)
+                && !TryParseSize(request.Size, out _, out _))
+            { error = "输出尺寸必须是 64–4096 范围内的宽x高"; return false; }
+            TryParseSize(NormalizedSize(request), out int outputWidth, out int outputHeight);
             if (provider == ProviderComfyUI
                 && !ComfyUiImageGenerationClient.TryValidateWorkflow(
-                    request.WorkflowJson, request.Model, request.Prompt, "reference.png", out _, out error))
+                    request.WorkflowJson, request.Model, request.Prompt, "reference.png",
+                    outputWidth, outputHeight, out _, out error))
                 return false;
             return true;
         }
@@ -113,6 +118,7 @@ namespace JianghuYouling.Core.Web
         {
             if (!TryValidate(request, out Uri endpoint, out string error)) return Fail(error);
             string provider = NormalizeProvider(request.Provider);
+            request.Size = NormalizedSize(request);
             string key = (request.ApiKey ?? "").Trim();
             if (provider == ProviderComfyUI)
                 return await ComfyUiImageGenerationClient.GenerateAsync(request, endpoint, cancellationToken)
@@ -168,7 +174,7 @@ namespace JianghuYouling.Core.Web
                 ["prompt"] = request.Prompt,
                 ["image"] = new JArray("data:image/png;base64," + Convert.ToBase64String(request.ReferencePng)),
                 ["response_format"] = "b64_json",
-                ["size"] = FixedLandscapeSize,
+                ["size"] = NormalizedSize(request),
                 ["stream"] = false,
                 ["watermark"] = request.Watermark
             };
@@ -183,7 +189,7 @@ namespace JianghuYouling.Core.Web
                 ["n"] = 1,
                 ["stream"] = false,
                 ["output_format"] = "png",
-                ["aspect_ratio"] = FixedLandscapeAspectRatio,
+                ["aspect_ratio"] = AspectRatio(request),
                 ["input_references"] = new JArray(new JObject
                 {
                     ["type"] = "image_url",
@@ -222,7 +228,7 @@ namespace JianghuYouling.Core.Web
                 AddUtf8FormField(form, "model", request.Model.Trim());
                 AddUtf8FormField(form, "prompt", request.Prompt);
                 AddUtf8FormField(form, "n", "1");
-                AddUtf8FormField(form, "size", FixedLandscapeSize);
+                AddUtf8FormField(form, "size", NormalizedSize(request));
                 AddUtf8FormField(form, "output_format", "png");
                 var image = new ByteArrayContent(request.ReferencePng);
                 image.Headers.ContentType = new MediaTypeHeaderValue("image/png");
@@ -257,6 +263,43 @@ namespace JianghuYouling.Core.Web
             safe = safe.Replace('\r', ' ').Replace('\n', ' ').Trim();
             if (safe.Length > 800) safe = safe.Substring(0, 800) + "…";
             return safe.Length == 0 ? "生图请求失败" : safe;
+        }
+
+        public static bool TryParseSize(string value, out int width, out int height)
+        {
+            width = 0;
+            height = 0;
+            string[] parts = (value ?? "").Trim().ToLowerInvariant().Split('x');
+            if (parts.Length != 2 || !int.TryParse(parts[0], out width)
+                || !int.TryParse(parts[1], out height)) return false;
+            return width >= 64 && width <= 4096 && height >= 64 && height <= 4096;
+        }
+
+        public static string NormalizeSize(string value, string provider)
+        {
+            if (TryParseSize(value, out int width, out int height)) return width + "x" + height;
+            return NormalizeProvider(provider) == ProviderComfyUI ? LocalLandscapeSize : FixedLandscapeSize;
+        }
+
+        internal static string NormalizedSize(ImageGenerationRequest request)
+            => NormalizeSize(request?.Size, request?.Provider);
+
+        internal static string AspectRatio(ImageGenerationRequest request)
+        {
+            TryParseSize(NormalizedSize(request), out int width, out int height);
+            int divisor = GreatestCommonDivisor(width, height);
+            return width / divisor + ":" + height / divisor;
+        }
+
+        private static int GreatestCommonDivisor(int width, int height)
+        {
+            while (height != 0)
+            {
+                int remainder = width % height;
+                width = height;
+                height = remainder;
+            }
+            return Math.Max(1, width);
         }
 
         static string NormalizeProvider(string value)

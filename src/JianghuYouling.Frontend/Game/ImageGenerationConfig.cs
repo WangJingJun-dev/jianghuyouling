@@ -53,9 +53,7 @@ namespace JianghuYouling
                 result.Endpoint = Text(o, "endpoint", DefaultEndpoint);
                 result.ApiKey = key ?? "";
                 result.Model = Text(o, "model", DefaultModel);
-                // 旧配置中的 1K/2K/4K 或任意宽高值不再沿用，避免参考图比例
-                // 影响服务端自适应输出，所有新请求固定为横向 16:9。
-                result.Size = ImageGenerationClient.FixedSizeForProvider(result.Provider);
+                result.Size = ImageGenerationClient.NormalizeSize(o?["size"]?.ToString(), result.Provider);
                 result.Style = (o?["style"]?.ToString() ?? "").Trim();
                 if (result.Style.Length > MaxStyleChars) result.Style = result.Style.Substring(0, MaxStyleChars);
                 result.Watermark = o?["watermark"]?.Value<bool?>() ?? false;
@@ -142,6 +140,12 @@ namespace JianghuYouling
                 LastSaveError = "不支持的生图协议";
                 return false;
             }
+            if (!ImageGenerationClient.TryParseSize(value.Size, out int width, out int height))
+            {
+                LastSaveError = "输出尺寸必须是 64–4096 范围内的宽x高";
+                return false;
+            }
+            value.Size = width + "x" + height;
             string workflowPath = (value.WorkflowPath ?? "").Trim();
             if (workflowPath.Length > MaxWorkflowPathChars || ContainsControl(workflowPath))
             {
@@ -171,7 +175,7 @@ namespace JianghuYouling
                 ["provider"] = provider,
                 ["endpoint"] = (value.Endpoint ?? "").Trim(),
                 ["model"] = (value.Model ?? "").Trim(),
-                ["size"] = ImageGenerationClient.FixedSizeForProvider(provider),
+                ["size"] = value.Size,
                 ["style"] = style,
                 ["watermark"] = value.Watermark,
                 ["workflowPath"] = workflowPath
@@ -242,7 +246,7 @@ namespace JianghuYouling
                 Prompt = "配置校验提示词",
                 ReferencePng = reference,
                 WorkflowJson = value.WorkflowJson,
-                Size = ImageGenerationClient.FixedSizeForProvider(value.Provider),
+                Size = value.Size,
                 Watermark = value.Watermark
             }, out _, out error);
         }

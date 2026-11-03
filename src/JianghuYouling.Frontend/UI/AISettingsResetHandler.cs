@@ -36,7 +36,6 @@ namespace JianghuYouling
             Check(GhostwriteSelfLearningStore.Save(true), "ghostwrite_learning");
             Check(StreamStore.Save(true), "stream");
             Check(ThinkingStore.Save(true), "thinking");
-            Check(GroupRoundsStore.Save(GroupRoundsStore.Default), "group_rounds");
             Check(NpcProactiveChatStore.SaveEnabled(true), "npc_proactive_enabled");
             Check(NpcProactiveChatStore.SaveFrequency(NpcProactiveChatStore.DefaultFrequency),
                 "npc_proactive_frequency");

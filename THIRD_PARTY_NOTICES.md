@@ -48,3 +48,9 @@ Frontend / Backend 引用本机《太吾绘卷》安装中的游戏、Unity、Ha
 Steamworks.NET、Redzen 等程序集，项目文件将这些引用设为 `Private=false`。
 这些文件不是仓库内容，也不在 Mod 发布包白名单内；构建者需自行合法安装游戏。
 相关程序集及游戏资产适用各自权利人的许可，不受本仓库 MIT 许可覆盖。
+
+## Iconfont 回复操作图标
+
+`deploy/round-actions/voice.png`、`image.png`、`retry.png`、`delete.png` 分别由用户提供的 `user_renyuanshuohua_people-speak.svg`、`tuxiang.svg`、`shuaxin.svg`、`shanchu.svg` 转换而来，原始图标来源为 https://www.iconfont.cn/ 。转换时仅统一暖米白色、可见尺寸和透明画布。
+
+用户说明这些图标可免费使用。SVG 文件未包含作者、原始条目链接或许可证文本，因此这里不推定其采用 MIT、公共领域或其他具体许可；公开发布前仍需补充核对对应条目的许可与署名要求。
