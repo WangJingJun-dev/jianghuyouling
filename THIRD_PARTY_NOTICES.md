@@ -49,8 +49,28 @@ Steamworks.NET、Redzen 等程序集，项目文件将这些引用设为 `Privat
 这些文件不是仓库内容，也不在 Mod 发布包白名单内；构建者需自行合法安装游戏。
 相关程序集及游戏资产适用各自权利人的许可，不受本仓库 MIT 许可覆盖。
 
-## Iconfont 回复操作图标
+## Tabler Icons 回复操作图标
 
-`deploy/round-actions/voice.png`、`image.png`、`retry.png`、`delete.png` 分别由用户提供的 `user_renyuanshuohua_people-speak.svg`、`tuxiang.svg`、`shuaxin.svg`、`shanchu.svg` 转换而来，原始图标来源为 https://www.iconfont.cn/ 。转换时仅统一暖米白色、可见尺寸和透明画布。
+`deploy/round-actions/voice.png`、`image.png`、`retry.png`、`delete.png` 分别由 Tabler Icons 的 `volume`、`photo-spark`、`refresh`、`message-circle-x` SVG 转换而来。来源：https://github.com/tabler/tabler-icons ，许可原文见 https://raw.githubusercontent.com/tabler/tabler-icons/main/LICENSE 。转换时仅统一暖米白色、可见尺寸和透明画布。
 
-用户说明这些图标可免费使用。SVG 文件未包含作者、原始条目链接或许可证文本，因此这里不推定其采用 MIT、公共领域或其他具体许可；公开发布前仍需补充核对对应条目的许可与署名要求。
+> MIT License
+>
+> Copyright (c) 2020-2026 Paweł Kuna
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
